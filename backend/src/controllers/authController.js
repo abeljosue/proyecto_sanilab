@@ -1,6 +1,7 @@
 
 const Usuario = require('../models/Usuario');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'Sanilab2025';
 
@@ -18,7 +19,9 @@ exports.login = async (req, res) => {
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
-    if (usuario.passwordhash !== password) {
+    const isMatch = await bcrypt.compare(password, usuario.passwordhash);
+
+    if (!isMatch) {
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 

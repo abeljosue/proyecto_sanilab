@@ -63,30 +63,17 @@ exports.marcarEntrada = async (req, res) => {
       return res.status(400).json({ error: 'Falta horaLocal en la petición' });
     }
 
-    console.log('🕐 Marcando entrada:', usuarioid, horaLocal);
+    console.log('🕐 Marcando entrada/reanudación:', usuarioid, horaLocal);
 
     const hoy = new Date();
     const diaSemana = hoy.getDay();
-
-    // Resetear hora al inicio del día para búsquedas de fecha
     const fechaHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
 
     let tardanzaMinutos = 0;
     let esTarde = false;
 
-    // Buscar horario
-    const horario = await HorarioTrabajador.findOne({
-      usuario_id: usuarioid,
-      dia_semana: diaSemana,
-      activo: true
-    });
-
-    if (horario) {
-      const horaEsperada = horario.hora_entrada_esperada;
-      tardanzaMinutos = calcularMinutosTarde(horaEsperada, horaLocal);
-      esTarde = tardanzaMinutos > 0;
-      console.log(`⏰ Hora esperada: ${horaEsperada}, Actual: ${horaLocal}, Tardanza: ${tardanzaMinutos} min`);
-    }
+    // Buscar horario solo si es la PRIMERA entrada del día
+    // (Lógica simplificada: si no existe asistencia, es la primera entrada)
 
     // Buscar asistencia existente
     let asistencia = await Asistencia.findOne({
@@ -95,6 +82,19 @@ exports.marcarEntrada = async (req, res) => {
     });
 
     if (!asistencia) {
+      // Es la primera entrada del día, verificamos horario
+      const horario = await HorarioTrabajador.findOne({
+        usuario_id: usuarioid,
+        dia_semana: diaSemana,
+        activo: true
+      });
+
+      if (horario) {
+        const horaEsperada = horario.hora_entrada_esperada;
+        tardanzaMinutos = calcularMinutosTarde(horaEsperada, horaLocal);
+        esTarde = tardanzaMinutos > 0;
+      }
+
       asistencia = new Asistencia({
         usuarioid,
         fecha: fechaHoy,
@@ -103,12 +103,15 @@ exports.marcarEntrada = async (req, res) => {
         tardanza_minutos: tardanzaMinutos,
         tramos: []
       });
+    } else {
+      // Si ya existe, es una reanudación de jornada (o error si ya está abierta)
+      asistencia.estado = 'En jornada';
     }
 
-    // Verificar tramos abiertos
+    // Verificar si ya hay un tramo abierto
     const tramoAbierto = asistencia.tramos.find(t => !t.horasalida);
     if (tramoAbierto) {
-      return res.status(400).json({ error: 'Ya tienes un tramo de asistencia en curso' });
+      return res.status(400).json({ error: 'Ya tienes un turno en curso. Debes pausar o terminar antes de iniciar otro.' });
     }
 
     // Agregar nuevo tramo
@@ -119,18 +122,18 @@ exports.marcarEntrada = async (req, res) => {
 
     await asistencia.save();
 
-    // Obtener el ID del tramo recién creado (el último)
     const nuevoTramo = asistencia.tramos[asistencia.tramos.length - 1];
 
     return res.json({
       ok: true,
       message: esTarde
-        ? `Entrada registrada. Llegaste ${tardanzaMinutos} minutos tarde ⚠️`
-        : 'Entrada registrada puntualmente ✅',
+        ? `Entrada registrada. Llegaste ${tardanzaMinutos} min tarde ⚠️`
+        : 'Jornada iniciada/reanudada con éxito ✅',
       asistenciaId: asistencia.id,
       tramoId: nuevoTramo._id,
       tardanza: tardanzaMinutos,
-      esTarde: esTarde
+      esTarde: esTarde,
+      estado: asistencia.estado
     });
   } catch (err) {
     console.error('❌ Error en marcarEntrada:', err);
@@ -141,7 +144,8 @@ exports.marcarEntrada = async (req, res) => {
 exports.marcarSalida = async (req, res) => {
   try {
     const usuarioid = req.user.id;
-    const { horaLocal } = req.body;
+    const { horaLocal, tipo } = req.body; // tipo: 'pausa' o 'fin' (default 'fin')
+
     if (!horaLocal) {
       return res.status(400).json({ error: 'Falta horaLocal en la petición' });
     }
@@ -155,23 +159,23 @@ exports.marcarSalida = async (req, res) => {
     });
 
     if (!asistencia) {
-      return res.status(404).json({ error: 'No hay asistencia registrada hoy' });
+      return res.status(404).json({ error: 'No hay asistencia registrada hoy para cerrar.' });
     }
 
     // Buscar tramo abierto
     const tramoIndex = asistencia.tramos.findIndex(t => !t.horasalida);
 
     if (tramoIndex === -1) {
-      return res.status(404).json({ error: 'No hay tramo de asistencia en curso' });
+      return res.status(400).json({ error: 'No tienes un turno activo para pausar o terminar.' });
     }
 
     // Cerrar tramo
     asistencia.tramos[tramoIndex].horasalida = horaLocal;
 
-    // Actualizar última salida general
+    // Actualizar última salida general referencia
     asistencia.horasalida = horaLocal;
 
-    // Calcular total trabajada
+    // Calcular total trabajada sumando todos los tramos cerrados
     let segundosTotales = 0;
     asistencia.tramos.forEach(t => {
       if (t.horaentrada && t.horasalida) {
@@ -184,14 +188,21 @@ exports.marcarSalida = async (req, res) => {
     });
 
     asistencia.horas_trabajadas = segundosTotales;
-    asistencia.estado = 'Presente'; // O 'Jornada terminada'
+
+    // Definir estado según el tipo de salida
+    if (tipo === 'pausa') {
+      asistencia.estado = 'En Pausa';
+    } else {
+      asistencia.estado = 'Jornada terminada';
+    }
 
     await asistencia.save();
 
     res.json({
-      message: 'Salida registrada',
+      message: tipo === 'pausa' ? 'Jornada pausada ⏸️' : 'Jornada terminada por hoy 👋',
       asistenciaId: asistencia.id,
-      segundosTotales
+      segundosTotales,
+      estado: asistencia.estado
     });
 
   } catch (err) {
