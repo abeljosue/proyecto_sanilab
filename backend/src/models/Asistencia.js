@@ -25,7 +25,7 @@ const asistenciaSchema = new mongoose.Schema({
   horas_trabajadas: { type: Number, default: 0 },
   estado: {
     type: String,
-    enum: ['En jornada', 'Jornada terminada', 'Ausente', 'Licencia'],
+    enum: ['En jornada', 'En Pausa', 'Jornada terminada', 'Ausente', 'Licencia'],
     default: 'En jornada'
   },
   tramos: [tramoSchema] // Array de tramos incrustado

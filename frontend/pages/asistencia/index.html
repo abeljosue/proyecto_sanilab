@@ -3,153 +3,93 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Asistencia - Autoevaluaciones</title>
-  <link rel="stylesheet" href="../../assets/css/asistencia.css" />
+  <title>Control de Asistencia</title>
+  <link rel="stylesheet" href="../../assets/css/asistencia_moderno.css" />
   <link rel="icon" type="image/png" href="../../assets/images/Sanilab-favicon.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
   <div id="toast" class="toast hidden">
     <span id="toast-message"></span>
   </div>
 
-  <div class="container">
+  <div class="main-container">
     <div class="header">
-      <button class="back-button" onclick="location.href='../home/index.html'">
-        ← Volver
+      <button class="back-botton" onclick="location.href='../home/index.html'">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+        Volver
       </button>
-      <h1>Asistencia</h1>
-      <p class="date-display" id="currentDate"></p>
+      <h2 class="page-title">Control de Jornada</h2>
+      <div id="statusBadge" class="status-badge">Cargando...</div>
     </div>
 
-    <div class="asistencia-card" id="asistencia-info">
-      <div class="acciones-registro">
-        <button class="btn-action btn-entrada" id="btnEntrada">
-          <span class="btn-icon">→</span>
-          <span class="btn-text">Marcar Entrada</span>
+    <!-- Reloj Principal -->
+    <div class="clock-container">
+      <div class="date-display" id="currentDate">-- de -- de --</div>
+      <div class="time-display" id="realTimeClock">--:--:--</div>
+      <div class="total-counter">
+        Tiempo trabajado hoy: <span id="totalTime">00:00:00</span>
+      </div>
+    </div>
+
+    <!-- Botones de Acción -->
+    <div class="actions-container">
+      <!-- Botón Inicio -->
+      <button id="btnIniciar" class="action-btn btn-start hidden" onclick="marcarEntrada()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        Iniciar Jornada
+      </button>
+
+      <!-- Botones En Curso -->
+      <div id="controlesEnCurso" class="active-controls hidden">
+        <button id="btnPausar" class="action-btn btn-pause" onclick="marcarSalida('pausa')">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          Pausar
         </button>
-        
-        <button class="btn-action btn-salida" id="btnSalida" disabled>
-          <span class="btn-icon">←</span>
-          <span class="btn-text">Marcar Salida</span>
+        <button id="btnTerminar" class="action-btn btn-stop" onclick="marcarSalida('fin')">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+          Terminar Jornada
         </button>
       </div>
 
-      <div class="info-row">
-        <span class="info-label">Entrada:</span>
-        <span class="info-value" id="entradaTime">--:--</span>
+      <!-- Botones En Pausa -->
+      <div id="controlesEnPausa" class="active-controls hidden">
+        <button id="btnReanudar" class="action-btn btn-resume" onclick="marcarEntrada()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          Reanudar Jornada
+        </button>
+        <button id="btnTerminarPausa" class="action-btn btn-stop" onclick="marcarSalida('fin')">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+            Terminar Jornada
+        </button>
       </div>
-      <div class="info-row">
-        <span class="info-label">Salida:</span>
-        <span class="info-value" id="salidaTime">--:--</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Tiempo total:</span>
-        <span class="info-value highlight" id="totalTime">-- hrs</span>
+      
+      <!-- Mensaje Jornada Terminada -->
+      <div id="mensajeTerminado" class="finished-message hidden">
+        ¡Jornada finalizada por hoy! Nos vemos mañana. 👋
       </div>
     </div>
 
-    <div class="recent-section" id="ultimaAsistenciaSection" style="display: none;">
-      <h3>Última Asistencia Registrada</h3>
-      <div class="ultima-asistencia-card">
-        <div class="info-row">
-          <span class="info-label">Fecha:</span>
-          <span class="info-value" id="ultimaFecha">--</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">Hora de entrada:</span>
-          <span class="info-value" id="ultimaEntrada">--</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">Hora de salida:</span>
-          <span class="info-value" id="ultimaSalida">--</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">Estado:</span>
-          <span class="info-value" id="ultimoEstado">--</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">Tiempo total:</span>
-          <span class="info-value highlight" id="ultimoTotal">--</span>
-        </div>
-      </div>
+    <!-- Historial de Tramos (Opcional, visible si hay datos) -->
+    <div class="tramos-container">
+      <h3>Resumen del Día</h3>
+      <table class="tramos-table">
+        <thead>
+          <tr>
+            <th>Entrada</th>
+            <th>Salida</th>
+            <th>Duración</th>
+          </tr>
+        </thead>
+        <tbody id="listaTramos">
+          <!-- Tramos insertados por JS -->
+        </tbody>
+      </table>
     </div>
+
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script src="../../js/pages/asistencia.js"></script>
-  
-  <script>
-    function updateDateTime() {
-      const now = new Date();
-      const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-      document.getElementById('currentDate').textContent =
-        now.toLocaleDateString('es-ES', dateOptions);
-    }
-
-    updateDateTime();
-    setInterval(updateDateTime, 1000);
-
-    function mostrarUltimaAsistencia(data) {
-      if (typeof data === 'string') {
-        try {
-          data = JSON.parse(data);
-        } catch (e) {
-          console.error('Error al parsear JSON:', e);
-          return;
-        }
-      }
-
-      const section = document.getElementById('ultimaAsistenciaSection');
-      
-      if (data && data.fecha) {
-        section.style.display = 'block';
-        
-        const fecha = new Date(data.fecha);
-        document.getElementById('ultimaFecha').textContent = 
-          fecha.toLocaleDateString('es-ES', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
-          });
-        
-        document.getElementById('ultimaEntrada').textContent =
-          data.hora_entrada || '--:--';
-        
-        document.getElementById('ultimaSalida').textContent =
-          data.hora_salida || 'Pendiente';
-        
-        document.getElementById('ultimoEstado').textContent =
-          data.estado || 'En jornada';
-        
-        document.getElementById('ultimoTotal').textContent =
-          data.hora_total || 'En curso';
-      }
-    }
-
-    const asistenciaInfoDiv = document.getElementById('asistencia-info');
-    
-    const observer = new MutationObserver(function(mutations) {
-      mutations.forEach(function(mutation) {
-        if (mutation.addedNodes.length) {
-          const textContent = asistenciaInfoDiv.textContent;
-          if (textContent.includes('usuario_id')) {
-            const jsonMatch = textContent.match(/\{[^}]+\}/);
-            if (jsonMatch) {
-              try {
-                const data = JSON.parse(jsonMatch[0]);
-                mostrarUltimaAsistencia(data);
-              } catch (e) {
-                console.log('No se pudo parsear la asistencia');
-              }
-            }
-          }
-        }
-      });
-    });
-
-    observer.observe(asistenciaInfoDiv, { childList: true, subtree: true });
-    
-    window.mostrarUltimaAsistencia = mostrarUltimaAsistencia;
-  </script>
 </body>
 </html>
