@@ -1,20 +1,26 @@
-
 :root {
-  --primary-color: #00c853; /* Success Green */
+  --primary-color: #00c853;
+  /* Success Green */
   --primary-hover: #009624;
-  --secondary-color: #FFD600; /* Pause Yellow */
-  --danger-color: #D50000;    /* Stop Red */
+  --secondary-color: #FFD600;
+  /* Pause Yellow */
+  --danger-color: #D50000;
+  /* Stop Red */
   --bg-color: #f8f9fa;
   --text-primary: #212121;
   --text-secondary: #757575;
   --white: #ffffff;
-  --shadow: 0 4px 6px rgba(0,0,0,0.1);
+  --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   --radius: 12px;
 }
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: var(--bg-color);
+  background-image: url('../images/Fondo2.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
   color: var(--text-primary);
   margin: 0;
   padding: 0;
@@ -72,10 +78,25 @@ body {
   text-transform: uppercase;
 }
 
-.status-active { background: #e8f5e9; color: #2e7d32; }
-.status-paused { background: #fffde7; color: #f9a825; }
-.status-finished { background: #ffebee; color: #c62828; }
-.status-neutral { background: #eeeeee; color: #616161; }
+.status-active {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-paused {
+  background: #fffde7;
+  color: #f9a825;
+}
+
+.status-finished {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.status-neutral {
+  background: #eeeeee;
+  color: #616161;
+}
 
 /* Clock Container */
 .clock-container {
@@ -100,7 +121,8 @@ body {
   font-weight: 700;
   color: #37474f;
   margin-bottom: 20px;
-  font-variant-numeric: tabular-nums; /* Evita que los números salten */
+  font-variant-numeric: tabular-nums;
+  /* Evita que los números salten */
 }
 
 .total-counter {
@@ -124,10 +146,10 @@ body {
 }
 
 .active-controls {
-    display: flex;
-    gap: 15px;
-    width: 100%;
-    justify-content: center;
+  display: flex;
+  gap: 15px;
+  width: 100%;
+  justify-content: center;
 }
 
 .action-btn {
@@ -150,17 +172,43 @@ body {
   transform: scale(0.98);
 }
 
-.btn-start { background-color: var(--primary-color); color: white; }
-.btn-start:hover { background-color: var(--primary-hover); box-shadow: 0 4px 12px rgba(0, 200, 83, 0.4); }
+.btn-start {
+  background-color: var(--primary-color);
+  color: white;
+}
 
-.btn-pause { background-color: var(--secondary-color); color: #333; }
-.btn-pause:hover { filter: brightness(0.95); }
+.btn-start:hover {
+  background-color: var(--primary-hover);
+  box-shadow: 0 4px 12px rgba(0, 200, 83, 0.4);
+}
 
-.btn-resume { background-color: #2979FF; color: white; }
-.btn-resume:hover { background-color: #2962FF; }
+.btn-pause {
+  background-color: var(--secondary-color);
+  color: #333;
+}
 
-.btn-stop { background-color: #fff; border: 2px solid var(--danger-color); color: var(--danger-color); }
-.btn-stop:hover { background-color: #ffebee; }
+.btn-pause:hover {
+  filter: brightness(0.95);
+}
+
+.btn-resume {
+  background-color: #2979FF;
+  color: white;
+}
+
+.btn-resume:hover {
+  background-color: #2962FF;
+}
+
+.btn-stop {
+  background-color: #fff;
+  border: 2px solid var(--danger-color);
+  color: var(--danger-color);
+}
+
+.btn-stop:hover {
+  background-color: #ffebee;
+}
 
 /* Mensaje Terminado */
 .finished-message {
@@ -212,7 +260,9 @@ body {
 }
 
 /* Utilities */
-.hidden { display: none !important; }
+.hidden {
+  display: none !important;
+}
 
 /* Toast */
 .toast {
@@ -223,20 +273,38 @@ body {
   border-radius: 8px;
   color: white;
   font-weight: 500;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   opacity: 0;
   transform: translateY(-20px);
   transition: all 0.3s;
   z-index: 1000;
 }
 
-.toast.show { opacity: 1; transform: translateY(0); }
-.toast-success { background-color: var(--primary-color); }
-.toast-error { background-color: var(--danger-color); }
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast-success {
+  background-color: var(--primary-color);
+}
+
+.toast-error {
+  background-color: var(--danger-color);
+}
 
 /* Responsive */
 @media (max-width: 480px) {
-  .time-display { font-size: 3rem; }
-  .active-controls { flex-direction: column; }
-  .action-btn { width: 100%; max-width: none; }
+  .time-display {
+    font-size: 3rem;
+  }
+
+  .active-controls {
+    flex-direction: column;
+  }
+
+  .action-btn {
+    width: 100%;
+    max-width: none;
+  }
 }

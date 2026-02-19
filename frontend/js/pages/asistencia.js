@@ -117,6 +117,22 @@ function updateUI(data) {
       renderTramos(data.tramos);
     }
   }
+
+  // Actualizar Footer de Total
+  const filaTotal = document.getElementById('filaTotal');
+  const totalFooter = document.getElementById('totalHorasFooter');
+
+  if (totalFooter && data.horatotal) {
+    totalFooter.textContent = data.horatotal;
+  }
+
+  if (filaTotal) {
+    if (data.horatotal && data.tramos && data.tramos.length > 0) {
+      filaTotal.classList.remove('hidden');
+    } else {
+      filaTotal.classList.add('hidden');
+    }
+  }
 }
 
 function getStatusClass(estado) {

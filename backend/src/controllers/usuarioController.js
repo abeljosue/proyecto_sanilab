@@ -1,6 +1,5 @@
-
 const Usuario = require('../models/Usuario');
-// const jwt = require('jsonwebtoken'); // Si se usa en loginUsuario
+const bcrypt = require('bcryptjs');
 
 exports.getAllUsuarios = async (req, res) => {
   try {
@@ -51,9 +50,13 @@ exports.createUsuario = async (req, res) => {
 
     const activoRaw = activo ?? 'SI';
 
+    // Hashear password
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash(password, salt);
+
     const nuevoUsuario = new Usuario({
       correo,
-      passwordhash: password, // Mapeo de password a passwordhash
+      passwordhash: hash, // Guardar hash
       nombre,
       apellido,
       areaid, // ObjectId
@@ -91,7 +94,9 @@ exports.loginUsuario = async (req, res) => {
       return res.status(401).json({ error: 'Correo o contraseña incorrectos' });
     }
 
-    if (usuario.passwordhash !== password) {
+    const isMatch = await bcrypt.compare(password, usuario.passwordhash);
+
+    if (!isMatch) {
       return res.status(401).json({ error: 'Correo o contraseña incorrectos' });
     }
 

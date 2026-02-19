@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +9,7 @@
   <link rel="icon" type="image/png" href="../../assets/images/Sanilab-favicon.png" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
+
 <body>
   <div id="toast" class="toast hidden">
     <span id="toast-message"></span>
@@ -16,7 +18,11 @@
   <div class="main-container">
     <div class="header">
       <button class="back-botton" onclick="location.href='../home/index.html'">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 12H5" />
+          <path d="M12 19l-7-7 7-7" />
+        </svg>
         Volver
       </button>
       <h2 class="page-title">Control de Jornada</h2>
@@ -36,18 +42,24 @@
     <div class="actions-container">
       <!-- Botón Inicio -->
       <button id="btnIniciar" class="action-btn btn-start hidden" onclick="marcarEntrada()">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M8 5v14l11-7z" />
+        </svg>
         Iniciar Jornada
       </button>
 
       <!-- Botones En Curso -->
       <div id="controlesEnCurso" class="active-controls hidden">
         <button id="btnPausar" class="action-btn btn-pause" onclick="marcarSalida('pausa')">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+          </svg>
           Pausar
         </button>
         <button id="btnTerminar" class="action-btn btn-stop" onclick="marcarSalida('fin')">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M6 6h12v12H6z" />
+          </svg>
           Terminar Jornada
         </button>
       </div>
@@ -55,15 +67,19 @@
       <!-- Botones En Pausa -->
       <div id="controlesEnPausa" class="active-controls hidden">
         <button id="btnReanudar" class="action-btn btn-resume" onclick="marcarEntrada()">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z" />
+          </svg>
           Reanudar Jornada
         </button>
         <button id="btnTerminarPausa" class="action-btn btn-stop" onclick="marcarSalida('fin')">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
-            Terminar Jornada
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M6 6h12v12H6z" />
+          </svg>
+          Terminar Jornada
         </button>
       </div>
-      
+
       <!-- Mensaje Jornada Terminada -->
       <div id="mensajeTerminado" class="finished-message hidden">
         ¡Jornada finalizada por hoy! Nos vemos mañana. 👋
@@ -92,4 +108,5 @@
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script src="../../js/pages/asistencia.js"></script>
 </body>
+
 </html>
