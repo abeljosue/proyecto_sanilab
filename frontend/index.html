@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sanilab | Login</title>
+  <link rel="stylesheet" href="assets/css/auth.css" />
+  <link rel="icon" type="image/png" href="assets/images/Sanilab-favicon.png" />
+</head>
+<body>
+  <div class="background"></div>
+
+  <main class="auth-container">
+    <div class="auth-card">
+      <img src="assets/images/Sanilab-logo.png" alt="Sanilab Logo" class="auth-logo" />
+
+      <h1 class="auth-title"><strong>Iniciar sesión</strong></h1>
+
+      <p class="auth-description">
+        Plataforma de innovación inclusiva que impulsa soluciones sostenibles
+        con impacto social.
+      </p>
+
+      <form id="loginForm" autocomplete="off">
+        <label for="correo"><strong>Correo electrónico</strong></label>
+        <input
+          type="email"
+          id="correo"
+          name="correo"
+          placeholder="ejemplo@correo.com"
+          required
+        />
+
+        <label for="password"><strong>Contraseña</strong></label>
+        <div class="password-wrapper">
+          <input
+            type="password"
+            id="password"
+            name="password"
+            placeholder="••••••••"
+            required
+          />
+          <button
+            type="button"
+            class="toggle-password"
+            onclick="togglePassword('password', this)"
+            aria-label="Mostrar contraseña"
+          >
+            👁
+          </button>
+        </div>
+
+        <button type="submit" id="btnLogin">Ingresar</button>
+      </form>
+
+      <div class="links">
+        <a href="pages/auth/cambiar-password.html">¿Olvidaste tu contraseña?</a>
+        <p>¿No tienes cuenta? <a href="pages/auth/registro.html">Regístrate</a></p>
+      </div>
+
+      <small class="security">
+        Tus datos están protegidos y no se comparten.
+      </small>
+    </div>
+  </main>
+
+  <button class="help-button" onclick="toggleHelpModal()" aria-label="Ayuda">
+    <span class="help-icon">?</span>
+  </button>
+
+  <div id="helpModal" class="help-modal-overlay">
+    <div class="help-modal-content">
+      <button class="help-close" onclick="closeHelpModal()" aria-label="Cerrar">×</button>
+      
+      <div class="help-header">
+        <div class="help-icon-large">📋</div>
+        <h2>Guía del Sistema Checklist</h2>
+      </div>
+
+      <div class="help-body">
+        <div class="help-section">
+          <h3>🎯 1. Objetivo</h3>
+          <p>Establecer los lineamientos para el correcto uso del sistema de Checklist de Asistencia y Autoevaluación, con el fin de registrar la jornada laboral, evaluar el desempeño diario y fomentar la mejora continua de los colaboradores de Sanilab.</p>
+        </div>
+
+        <div class="help-section">
+          <h3>👤 2. Registro y acceso al sistema</h3>
+          <p>Para el registro inicial, el colaborador deberá completar obligatoriamente la siguiente información:</p>
+          <ul>
+            <li>Nombre y apellido</li>
+            <li>Correo electrónico corporativo Sanilab</li>
+            <li>Contraseña: primer nombre + número de celular</li>
+            <li>Área correspondiente</li>
+            <li>Género</li>
+          </ul>
+          <p>Una vez registrado, el acceso al sistema se realizará utilizando el correo electrónico y la contraseña corporativa.</p>
+        </div>
+
+        <div class="help-section">
+          <h3>⏰ 3. Registro de asistencia</h3>
+          <p>El colaborador deberá registrar su asistencia de la siguiente manera:</p>
+          <ul>
+            <li>Seleccionar <strong>"Marcar Entrada"</strong> al inicio de su jornada laboral</li>
+            <li>Seleccionar <strong>"Marcar Salida"</strong> al finalizar su turno</li>
+            <li>El sistema permite registrar múltiples entradas y salidas en un mismo día en caso de realizar doble turno</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <h3>📝 4. Autoevaluación diaria</h3>
+          <ul>
+            <li>La autoevaluación deberá completarse al finalizar la jornada laboral y antes de retirarse</li>
+            <li>El colaborador deberá responder todas las preguntas utilizando los controles deslizantes (sliders)</li>
+            <li>El desempeño se calificará en una escala del 1 al 5</li>
+            <li>Al enviar la autoevaluación, el sistema mostrará el puntaje obtenido</li>
+          </ul>
+          <p class="warning">⚠️ La autoevaluación se realiza una (1) vez por día.</p>
+        </div>
+
+        <div class="help-section">
+          <h3>🏆 5. Puntaje y ranking quincenal</h3>
+          <ul>
+            <li>Cada autoevaluación genera un puntaje acumulable</li>
+            <li>El puntaje se consolida de forma quincenal</li>
+            <li>El ranking se actualiza al cierre de cada quincena</li>
+            <li>Los tres (3) colaboradores con mayor puntaje accederán a una ruleta de incentivos 🎉</li>
+            <li>El desempeño sostenido permitirá mejorar la posición en el ranking</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <h3>📝 6. Notion - Gestión de pendientes</h3>
+          <p>El sistema incluye acceso directo a Notion para organizar tus tareas:</p>
+          <ul>
+            <li>Seleccionar el botón <strong>"Notion"</strong> en el menú principal</li>
+            <li>Se abrirá Notion en una nueva pestaña del navegador</li>
+            <li>Podrás crear y gestionar tu lista de pendientes personal</li>
+            <li>Es recomendable mantener actualizada tu lista diaria de tareas</li>
+            <li>Notion te ayudará a organizar mejor tu trabajo y cumplir con tus objetivos</li>
+          </ul>
+          <p class="tip">💡 <strong>Tip:</strong> Usa Notion para planificar tus actividades antes de iniciar tu jornada laboral.</p>
+        </div>
+
+        <div class="help-section">
+          <h3>✅ 7. Lineamientos y recomendaciones</h3>
+          <ul>
+            <li>El registro de asistencia deberá realizarse de forma puntual y veraz</li>
+            <li>La autoevaluación deberá completarse con honestidad y responsabilidad</li>
+            <li>El uso indebido del sistema podrá ser sujeto a revisión interna</li>
+            <li>El cumplimiento de este procedimiento forma parte de las buenas prácticas laborales de Sanilab</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/pages/login.js"></script>
+  
+  <script>
+    function toggleHelpModal() {
+      const modal = document.getElementById('helpModal');
+      if (modal.style.display === 'flex') {
+        modal.classList.add('help-fade-out');
+        setTimeout(() => {
+          modal.style.display = 'none';
+          modal.classList.remove('help-fade-out');
+        }, 300);
+      } else {
+        modal.style.display = 'flex';
+        modal.classList.add('help-fade-in');
+      }
+    }
+
+    function closeHelpModal() {
+      const modal = document.getElementById('helpModal');
+      modal.classList.add('help-fade-out');
+      setTimeout(() => {
+        modal.style.display = 'none';
+        modal.classList.remove('help-fade-out');
+      }, 300);
+    }
+
+    document.getElementById('helpModal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeHelpModal();
+      }
+    });
+  </script>
+</body>
+</html>

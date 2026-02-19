@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ruleta de Incentivos</title>
+  <link rel="stylesheet" href="../../assets/css/ruleta.css">
+  <link rel="icon" type="image/png" href="../../assets/images/Sanilab-favicon.png" />
+</head>
+<body>
+  <h1>Ruleta de Premios</h1>
+  
+  <div class="ruleta-wrapper">
+    <div class="ruleta-pointer"></div>
+    <div class="ruleta-container" id="ruletaWheel">
+      <div class="divider"></div>
+      <div class="divider"></div>
+      <div class="divider"></div>
+      <div class="divider"></div>
+      <div class="divider"></div>
+      
+      <div class="prize-text"><span>Día libre</span></div>
+      <div class="prize-text"><span>Gift Card</span></div>
+      <div class="prize-text"><span>Almuerzo</span></div>
+      <div class="prize-text"><span>No premio</span></div>
+      <div class="prize-text"><span>Un bono</span></div>
+      
+      <div class="center-circle">🎁</div>
+    </div>
+  </div>
+
+  <button id="girarRuleta">GIRAR</button>
+  <div id="mensajePremio"></div>
+  
+  <script src="../../js/pages/ruleta.js"></script>
+</body>
+</html>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Resultados de Evaluación</title>
+  <link rel="stylesheet" href="../../assets/css/resultados.css" />
+  <link rel="icon" type="image/png" href="../../assets/images/Sanilab-favicon.png" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/2.1.3/TweenMax.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/zarocknz/javascript-winwheel@2.7.0/Winwheel.min.js"></script>
+</head>
+
+<body>
+  <div class="background-image" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -10;">
+    <img src="../../assets/images/Fondo-ruleta.jpg" alt="Fondo" style="width: 100%; height: 100%; object-fit: cover;">
+  </div>
+  
+  <div class="overlay-background"></div>
+  
+  <div class="container">
+    <div id="ruleta-container">
+      <h2>🎰 Ruleta de premios</h2>
+      <div class="ruleta-wrapper">
+        <div class="ruleta-pointer"></div>
+        <canvas id="ruletaCanvas" width="400" height="400"></canvas>
+      </div>
+
+      <button id="btnGirar">Girar</button>
+      <div id="resultadoRuleta"></div>
+    </div>
+
+    <div class="acciones-premio">
+      <button id="btnAyudaPremio" class="btn-ayuda">
+        ¿Cómo reclamar tu premio?
+      </button>
+
+      <button id="btnVolverInicio" class="btn-volver">
+        Volver al inicio
+      </button>
+    </div>
+
+    <div id="modalAyuda" class="modal-ayuda hidden">
+      <div class="modal-ayuda__backdrop"></div>
+      <div class="modal-ayuda__content">
+        <h2>¿Cómo reclamar tu premio?</h2>
+        <p>
+          Si obtuviste un premio en la ruleta, comunícate con el área de Gerencia
+          para coordinar la entrega.
+        </p>
+        <p>
+          Escríbenos o llámanos al <strong>+51 981 049 956</strong> indicando tu nombre,
+          área y premio obtenido.
+        </p>
+        <p>
+          El equipo validará tu resultado en el sistema y te informará la fecha y el
+          lugar para recibir tu reconocimiento.
+        </p>
+        <button id="btnCerrarAyuda" class="btn-modal-cerrar">
+          Entendido
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let ruleta;
+
+    function initRuleta() {
+      try {
+        ruleta = new Winwheel({
+          canvasId: 'ruletaCanvas',
+          numSegments: 6,
+          outerRadius: 180,
+          textFontSize: 16,
+          textOrientation: 'horizontal',
+          textAlignment: 'outer',
+          segments: [
+            { fillStyle: '#f94144', text: 'Día libre' },
+            { fillStyle: '#f8961e', text: 'Gift card' },
+            { fillStyle: '#f9c74f', text: 'Snack' },
+            { fillStyle: '#90be6d', text: 'Tarde libre' },
+            { fillStyle: '#43aa8b', text: 'Reconocimiento' },
+            { fillStyle: '#577590', text: 'Sorpresa' }
+          ],
+          animation: {
+            type: 'spinToStop',
+            duration: 5,
+            spins: 8,
+            callbackFinished: mostrarResultado
+          }
+        });
+        console.log('✅ Ruleta inicializada correctamente');
+      } catch (error) {
+        console.error('❌ Error al inicializar ruleta:', error);
+      }
+    }
+
+    function mostrarResultado(segment) {
+      const div = document.getElementById('resultadoRuleta');
+      div.textContent = '🎉 Te tocó: ' + segment.text + ' 🎉';
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        initRuleta();
+      }, 100);
+
+      document.getElementById('btnGirar').addEventListener('click', () => {
+        if (!ruleta) {
+          alert('La ruleta no se ha cargado correctamente. Recarga la página.');
+          return;
+        }
+        if (ruleta.animation && ruleta.animation.isSpinning) return;
+        document.getElementById('resultadoRuleta').textContent = '';
+        ruleta.startAnimation();
+      });
+
+      const modal = document.getElementById('modalAyuda');
+      const btnAyuda = document.getElementById('btnAyudaPremio');
+      const btnCerrar = document.getElementById('btnCerrarAyuda');
+      const backdrop = document.querySelector('.modal-ayuda__backdrop');
+
+      function abrirModal() {
+        modal.classList.remove('hidden');
+      }
+
+      function cerrarModal() {
+        modal.classList.add('hidden');
+      }
+
+      btnAyuda.addEventListener('click', abrirModal);
+      btnCerrar.addEventListener('click', cerrarModal);
+      backdrop.addEventListener('click', cerrarModal);
+
+      const btnVolver = document.getElementById('btnVolverInicio');
+      btnVolver.addEventListener('click', () => {
+        window.location.href = '/pages/home/index.html';
+      });
+    });
+  </script>
+</body>
+</html>

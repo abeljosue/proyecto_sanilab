@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Panel Admin</title>
+  <link rel="stylesheet" href="../../assets/css/admin.css">
+  <link rel="icon" type="image/png" href="../../assets/images/Sanilab-favicon.png"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+</head>
+<body>
+  <div class="container">
+    <a href="/pages/home/index.html" class="back-link">← Volver</a>
+    <h1>Panel Administrativo</h1>
+
+    <div class="filters">
+      <input type="text" id="buscarNombre" placeholder="Buscar por nombre">
+      <input type="date" id="fechaDesde">
+      <input type="date" id="fechaHasta">
+      <button id="btnFiltrarHoras">Filtrar horas</button>
+      <button id="btnFiltrarPuntajes">Filtrar puntajes</button>
+      <button id="btnExportarSheets" class="btn-export-sheets">📊 Exportar a Google Sheets</button>
+    </div>
+
+    <div style="margin-bottom: 30px;">
+      <button id="btnVerFaltantes" class="btn-faltantes">
+        📋 Ver quiénes no han marcado entrada hoy
+      </button>
+    </div>
+
+    <div id="faltantesContainer" style="display: none;">
+      <h2 id="tituloFaltantes">Faltantes del día</h2>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nombre</th>
+            <th>Apellido</th>
+            <th>Correo</th>
+            <th>Área</th>
+          </tr>
+        </thead>
+        <tbody id="tablaFaltantes"></tbody>
+      </table>
+    </div>
+
+    <h2>Horas contabilizadas</h2>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Fecha</th>
+          <th>Hora Entrada</th>
+          <th>Hora Salida</th>
+          <th>Horas Totales</th>
+        </tr>
+      </thead>
+      <tbody id="tablaHoras"></tbody>
+    </table>
+
+    <h2>Puntajes de autoevaluación</h2>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Quincena</th>
+          <th>Puntaje total</th>
+          <th>Puesto</th>
+        </tr>
+      </thead>
+      <tbody id="tablaPuntajes"></tbody>
+    </table>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="../../js/pages/admin.js"></script>
+</body>
+</html>

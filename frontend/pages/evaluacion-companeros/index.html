@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Evaluación de Compañeros</title>
+  <link rel="stylesheet" href="../../assets/css/autoevaluacion.css" />
+  <link rel="stylesheet" href="../../assets/css/evaluacion-companeros.css" />
+  <link rel="icon" type="image/png" href="../../assets/images/Sanilab-favicon.png" />
+</head>
+<body>
+  <div class="container">
+    <div class="header-panel">
+      <h1 class="title">Evaluación de Compañeros</h1>
+      <p class="subtitle">Evalúa el desempeño de tus compañeros y gerente (disponible cada 3 días)</p>
+
+      <div id="statusInfo" class="status-info" style="display: none;">
+        <p id="statusMessage"></p>
+      </div>
+
+      <div id="personasContainer">
+      </div>
+
+      <div class="actions" style="margin-top: 30px;">
+        <button id="btnEnviarTodas" class="btn btn-primary" style="display: none;" onclick="enviarTodasLasEvaluaciones()">
+          Enviar Evaluaciones →
+        </button>
+        
+        <a href="../home/index.html" class="btn btn-secondary">
+          ← Volver al inicio
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script src="../../js/pages/evaluacion-companeros.js"></script>
+</body>
+</html>

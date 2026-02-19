@@ -1,0 +1,27 @@
+{
+  "usuarios": [
+    {
+      "id": 1,
+      "nombre": "Admin",
+      "email": "admin@example.com",
+      "contraseña": "hashed_password_here",
+      "rol": "admin",
+      "estado": "activo",
+      "fecha_creacion": "2025-01-01T00:00:00Z",
+      "ultima_modificacion": "2025-01-01T00:00:00Z"
+    }
+  ],
+  "asistencias": [
+    {
+      "id": 1,
+      "usuario_id": 1,
+      "fecha": "2025-01-02",
+      "hora_entrada": "08:00:00",
+      "hora_salida": "12:00:00",
+      "total_horas": 4,
+      "estado": "completado",
+      "fecha_creacion": "2025-01-02T08:00:00Z"
+    }
+  ],
+  "evaluaciones": []
+}

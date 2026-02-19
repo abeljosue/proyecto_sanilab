@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Asistencia - Autoevaluaciones</title>
+  <link rel="stylesheet" href="../../assets/css/asistencia.css" />
+  <link rel="icon" type="image/png" href="../../assets/images/Sanilab-favicon.png" />
+</head>
+<body>
+  <div id="toast" class="toast hidden">
+    <span id="toast-message"></span>
+  </div>
+
+  <div class="container">
+    <div class="header">
+      <button class="back-button" onclick="location.href='../home/index.html'">
+        ← Volver
+      </button>
+      <h1>Asistencia</h1>
+      <p class="date-display" id="currentDate"></p>
+    </div>
+
+    <div class="asistencia-card" id="asistencia-info">
+      <div class="acciones-registro">
+        <button class="btn-action btn-entrada" id="btnEntrada">
+          <span class="btn-icon">→</span>
+          <span class="btn-text">Marcar Entrada</span>
+        </button>
+        
+        <button class="btn-action btn-salida" id="btnSalida" disabled>
+          <span class="btn-icon">←</span>
+          <span class="btn-text">Marcar Salida</span>
+        </button>
+      </div>
+
+      <div class="info-row">
+        <span class="info-label">Entrada:</span>
+        <span class="info-value" id="entradaTime">--:--</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Salida:</span>
+        <span class="info-value" id="salidaTime">--:--</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Tiempo total:</span>
+        <span class="info-value highlight" id="totalTime">-- hrs</span>
+      </div>
+    </div>
+
+    <div class="recent-section" id="ultimaAsistenciaSection" style="display: none;">
+      <h3>Última Asistencia Registrada</h3>
+      <div class="ultima-asistencia-card">
+        <div class="info-row">
+          <span class="info-label">Fecha:</span>
+          <span class="info-value" id="ultimaFecha">--</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Hora de entrada:</span>
+          <span class="info-value" id="ultimaEntrada">--</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Hora de salida:</span>
+          <span class="info-value" id="ultimaSalida">--</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Estado:</span>
+          <span class="info-value" id="ultimoEstado">--</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Tiempo total:</span>
+          <span class="info-value highlight" id="ultimoTotal">--</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="../../js/pages/asistencia.js"></script>
+  
+  <script>
+    function updateDateTime() {
+      const now = new Date();
+      const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+      document.getElementById('currentDate').textContent =
+        now.toLocaleDateString('es-ES', dateOptions);
+    }
+
+    updateDateTime();
+    setInterval(updateDateTime, 1000);
+
+    function mostrarUltimaAsistencia(data) {
+      if (typeof data === 'string') {
+        try {
+          data = JSON.parse(data);
+        } catch (e) {
+          console.error('Error al parsear JSON:', e);
+          return;
+        }
+      }
+
+      const section = document.getElementById('ultimaAsistenciaSection');
+      
+      if (data && data.fecha) {
+        section.style.display = 'block';
+        
+        const fecha = new Date(data.fecha);
+        document.getElementById('ultimaFecha').textContent = 
+          fecha.toLocaleDateString('es-ES', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+          });
+        
+        document.getElementById('ultimaEntrada').textContent =
+          data.hora_entrada || '--:--';
+        
+        document.getElementById('ultimaSalida').textContent =
+          data.hora_salida || 'Pendiente';
+        
+        document.getElementById('ultimoEstado').textContent =
+          data.estado || 'En jornada';
+        
+        document.getElementById('ultimoTotal').textContent =
+          data.hora_total || 'En curso';
+      }
+    }
+
+    const asistenciaInfoDiv = document.getElementById('asistencia-info');
+    
+    const observer = new MutationObserver(function(mutations) {
+      mutations.forEach(function(mutation) {
+        if (mutation.addedNodes.length) {
+          const textContent = asistenciaInfoDiv.textContent;
+          if (textContent.includes('usuario_id')) {
+            const jsonMatch = textContent.match(/\{[^}]+\}/);
+            if (jsonMatch) {
+              try {
+                const data = JSON.parse(jsonMatch[0]);
+                mostrarUltimaAsistencia(data);
+              } catch (e) {
+                console.log('No se pudo parsear la asistencia');
+              }
+            }
+          }
+        }
+      });
+    });
+
+    observer.observe(asistenciaInfoDiv, { childList: true, subtree: true });
+    
+    window.mostrarUltimaAsistencia = mostrarUltimaAsistencia;
+  </script>
+</body>
+</html>

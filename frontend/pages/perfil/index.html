@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mi Perfil</title>
+  <link rel="stylesheet" href="../../assets/css/perfil.css" />
+  <link rel="icon" type="image/png" href="../../assets/images/Sanilab-favicon.png" />
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+    crossorigin="anonymous"
+  />
+</head>
+<body>
+  <button class="btn-edit-fondo" onclick="abrirModalFondos()" title="Personalizar fondo">
+    <i class="fa-solid fa-palette"></i>
+  </button>
+
+  <div class="container">
+    <a href="/pages/home/index.html" class="back-link">← Volver al inicio</a>
+
+    <div class="profile-header">
+      <div class="profile-avatar">
+        <i class="fa-solid fa-user-circle"></i>
+      </div>
+      <div class="profile-info">
+        <h1 id="profileName">Cargando...</h1>
+        <p id="profileRole">...</p>
+        <p id="profileArea">...</p>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">🕐</div>
+        <div class="stat-value" id="statHoras">0</div>
+        <div class="stat-label">Horas trabajadas</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon">⭐</div>
+        <div class="stat-value" id="statPromedio">0</div>
+        <div class="stat-label">Evaluación promedio</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon">⏰</div>
+        <div class="stat-value" id="statTardanzas">0</div>
+        <div class="stat-label">Minutos de tardanza</div>
+      </div>
+    </div>
+
+    <div class="profile-section">
+      <h2><i class="fa-solid fa-clock"></i> Mis Horarios</h2>
+      <div id="horariosContainer" class="horarios-grid">
+      </div>
+    </div>
+
+    <div class="profile-section">
+      <h2><i class="fa-solid fa-chart-line"></i> Mis Autoevaluaciones</h2>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Puntaje</th>
+              <th>Quincena</th>
+              <th>Mensaje</th>
+            </tr>
+          </thead>
+          <tbody id="tablaAutoevaluaciones"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="profile-section">
+      <h2><i class="fa-solid fa-users"></i> Evaluaciones Recibidas de Compañeros</h2>
+      <div class="promedio-eval">
+        <span>Promedio general:</span>
+        <span id="promedioGeneral" class="promedio-valor">0/25</span>
+      </div>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Evaluado por</th>
+              <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Puntaje</th>
+              <th>Comentarios</th>
+            </tr>
+          </thead>
+          <tbody id="tablaEvaluacionesRecibidas"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalFondos" class="modal-fondos hidden">
+    <div class="modal-fondos__backdrop" onclick="cerrarModalFondos()"></div>
+    <div class="modal-fondos__content">
+      <h2>🎨 Personaliza tu fondo</h2>
+      <p>Sube una imagen de fondo para tu perfil (máx. 5MB)</p>
+      
+      <div class="upload-area" id="uploadArea">
+        <i class="fa-solid fa-cloud-arrow-up"></i>
+        <p>Haz clic o arrastra una imagen aquí</p>
+        <input type="file" id="inputFondo" accept="image/*" style="display: none;">
+      </div>
+
+      <div id="previewArea" style="display: none; margin-top: 15px;">
+        <p style="font-size: 0.9em; color: #636e72; margin-bottom: 10px;">Vista previa:</p>
+        <img id="imagenPreview" style="width: 100%; max-height: 200px; object-fit: cover; border-radius: 12px; border: 2px solid #e5e7eb;">
+      </div>
+      
+      <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+        <button class="btn btn-secondary" onclick="cerrarModalFondos()">Cancelar</button>
+        <button class="btn btn-primary" id="btnSubirFondo" onclick="subirFondo()" disabled>Guardar fondo</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalExito" class="modal-exito hidden">
+  <div class="modal-exito__backdrop"></div>
+  <div class="modal-exito__content">
+    <div class="modal-exito__checkmark">
+      <svg viewBox="0 0 52 52">
+       <circle cx="26" cy="26" r="25" fill="none"></circle>
+        <path d="M14 27 L22 35 L38 19"></path>
+      </svg>
+    </div>
+    <h2>¡Fondo actualizado!</h2>
+    <p>Tu perfil luce increíble 🎨</p>
+    <button class="btn-modal-close" onclick="cerrarModalExito()">Aceptar</button>
+  </div>
+</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="../../js/pages/perfil.js"></script>
+</body>
+</html>

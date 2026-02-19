@@ -1,0 +1,214 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e8f5e9 100%);
+  min-height: 100vh;
+  padding: 30px 20px;
+  color: #2d3436;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+h1 {
+  font-size: 2.8em;
+  font-weight: 300;
+  color: #2d3436;
+  margin-bottom: 40px;
+  letter-spacing: -0.8px;
+  text-align: center;
+}
+
+.ruleta-wrapper {
+  position: relative;
+  width: 400px;
+  height: 400px;
+  margin-bottom: 40px;
+}
+
+.ruleta-pointer {
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 25px solid transparent;
+  border-right: 25px solid transparent;
+  border-top: 50px solid #e74c3c;
+  z-index: 100;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.3));
+}
+
+.ruleta-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  border: 8px solid white;
+  transition: transform 5s cubic-bezier(0.25, 0.1, 0.25, 1);
+  background: conic-gradient(
+    from 0deg,
+    #4caf50 0deg 72deg,
+    #ff9800 72deg 144deg,
+    #2196f3 144deg 216deg,
+    #f44336 216deg 288deg,
+    #9c27b0 288deg 360deg
+  );
+}
+
+.divider {
+  position: absolute;
+  width: 2px;
+  height: 50%;
+  background: white;
+  top: 0;
+  left: 50%;
+  transform-origin: bottom center;
+  z-index: 2;
+}
+
+.divider:nth-child(1) { transform: translateX(-50%) rotate(72deg); }
+.divider:nth-child(2) { transform: translateX(-50%) rotate(144deg); }
+.divider:nth-child(3) { transform: translateX(-50%) rotate(216deg); }
+.divider:nth-child(4) { transform: translateX(-50%) rotate(288deg); }
+.divider:nth-child(5) { transform: translateX(-50%) rotate(360deg); }
+
+.prize-text {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  left: 0;
+  top: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 60px;
+  transform-origin: center center;
+}
+
+.prize-text span {
+  color: white;
+  font-weight: 700;
+  font-size: 1em;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  transform: rotate(-90deg);
+  white-space: nowrap;
+}
+
+.prize-text:nth-child(6) { transform: rotate(36deg); }
+.prize-text:nth-child(7) { transform: rotate(108deg); }
+.prize-text:nth-child(8) { transform: rotate(180deg); }
+.prize-text:nth-child(9) { transform: rotate(252deg); }
+.prize-text:nth-child(10) { transform: rotate(324deg); }
+
+.center-circle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100px;
+  height: 100px;
+  background: linear-gradient(135deg, #ffd700, #ffed4e);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5em;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  border: 5px solid white;
+  z-index: 10;
+}
+
+#girarRuleta {
+  border: none;
+  padding: 18px 50px;
+  border-radius: 50px;
+  font-size: 1.2em;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: linear-gradient(135deg, #4caf50, #45a049);
+  color: white;
+  box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+#girarRuleta:hover:not(:disabled) {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 8px 30px rgba(76, 175, 80, 0.5);
+}
+
+#girarRuleta:active {
+  transform: translateY(-1px) scale(1.02);
+}
+
+#girarRuleta:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+#mensajePremio {
+  margin-top: 30px;
+  background: white;
+  padding: 25px 40px;
+  border-radius: 15px;
+  font-size: 1.5em;
+  font-weight: 700;
+  color: #4caf50;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 0.4s ease;
+}
+
+#mensajePremio:not(:empty) {
+  opacity: 1;
+  transform: scale(1);
+}
+
+#mensajePremio:empty {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  h1 {
+    font-size: 2em;
+    margin-bottom: 30px;
+  }
+
+  .ruleta-wrapper {
+    width: 300px;
+    height: 300px;
+  }
+
+  .prize-text span {
+    font-size: 0.85em;
+  }
+
+  .center-circle {
+    width: 80px;
+    height: 80px;
+    font-size: 2em;
+  }
+
+  #girarRuleta {
+    padding: 15px 40px;
+    font-size: 1em;
+  }
+
+  #mensajePremio {
+    font-size: 1.2em;
+    padding: 20px 30px;
+  }
+}

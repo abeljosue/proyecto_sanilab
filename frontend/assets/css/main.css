@@ -1,0 +1,82 @@
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  min-height: 100vh;
+  background: #182449;
+  position: relative;
+}
+.login-bg {
+  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1;
+  background: url('../../assets/images/Fondo.jpg'), #182449;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: .92;
+}
+
+.login-container {
+  max-width: 400px;
+  margin: 70px auto 0 auto;
+  background: #fafbfc;
+  border-radius: 18px;
+  text-align: center;
+  box-shadow: 0 4px 28px #111c3650;
+  padding: 36px 32px 32px 32px;
+  display: flex; flex-direction: column; align-items: center;
+}
+.login-logo {
+  width: 220px;
+  margin-bottom: 18px;
+  display: block;
+}
+form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 8px;
+}
+label {
+  text-align: left;
+  font-weight: 600;
+  color: #173a56;
+  margin-top: 8px;
+  font-size: 1.05em;
+}
+input[type='email'], input[type='password'] {
+  padding: 12px 10px;
+  border-radius: 6px;
+  border: 1px solid #bdd2ec;
+  font-size: 1em;
+  margin-bottom: 8px;
+  background: #f7fcfe;
+  transition: border-color .2s;
+}
+input:focus { border-color: #418f55; }
+button[type='submit'] {
+  background: #3367c8;
+  color: white;
+  font-size: 1.08em;
+  padding: 11px 0;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  margin-top: 10px;
+  cursor: pointer;
+  transition: background .2s, box-shadow .2s;
+}
+button[type='submit']:hover { background: #44ad73; }
+.login-footer {
+  margin-top: 15px;
+  font-size: 0.97em;
+  color: #333;
+}
+.login-footer a {
+  color: #1d4d91;
+  text-decoration: underline;
+  font-weight: 500;
+  margin-left: 3px;
+}
+@media (max-width: 520px) {
+  .login-container { max-width: 97vw; padding: 9vw 2vw 18px 2vw; }
+}
+

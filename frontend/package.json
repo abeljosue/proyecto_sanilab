@@ -1,0 +1,24 @@
+{
+  "name": "sistema-autoevaluaciones-backend",
+  "version": "1.0.0",
+  "description": "Backend para sistema de autoevaluaciones",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "nodemon backend/server.js",
+    "test": "echo \"No hay tests definidos aun\""
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "mysql2": "^3.7.0",
+    "dotenv": "^16.0.3",
+    "cors": "^2.8.5",
+    "pg": "^8.16.3",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "axios": "^1.13.2"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  }
+}
