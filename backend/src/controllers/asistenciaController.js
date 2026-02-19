@@ -206,7 +206,45 @@ exports.marcarSalida = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Error en marcarSalida:', err);
     res.status(500).json({ error: err.message });
+  }
+};
+
+exports.obtenerEstadoActual = async (req, res) => {
+  try {
+    const usuarioid = req.user.id;
+    const hoy = new Date();
+    const fechaHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+
+    const asistencia = await Asistencia.findOne({
+      usuarioid,
+      fecha: fechaHoy
+    });
+
+    if (!asistencia) {
+      return res.json({
+        estado: 'Sin Iniciar'
+      });
+    }
+
+    // Calcular horas trabajadas formateadas
+    const seconds = asistencia.horas_trabajadas || 0;
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    const horatotal = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+    res.json({
+      asistenciaId: asistencia._id,
+      estado: asistencia.estado,
+      horaentrada: asistencia.horaentrada,
+      horasalida: asistencia.horasalida,
+      horatotal: horatotal, // HH:MM:SS
+      tramos: asistencia.tramos
+    });
+
+  } catch (err) {
+    console.error('Error en obtenerEstadoActual:', err);
+    res.status(500).json({ error: 'Error interno al obtener estado' });
   }
 };

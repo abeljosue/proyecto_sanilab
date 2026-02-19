@@ -65,9 +65,13 @@ exports.registro = async (req, res) => {
       return res.status(400).json({ error: 'El correo ya está registrado' });
     }
 
+    // Encriptar contraseña
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash(password, salt);
+
     const nuevoUsuario = new Usuario({
       correo,
-      passwordhash: password,
+      passwordhash: hash, // Guardar hash
       nombre,
       apellido,
       areaid,
@@ -103,7 +107,11 @@ exports.cambiarPassword = async (req, res) => {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
-    usuario.passwordhash = nuevaPassword;
+    // Encriptar nueva contraseña
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash(nuevaPassword, salt);
+
+    usuario.passwordhash = hash;
     await usuario.save();
 
     res.json({ ok: true, message: 'Contraseña actualizada exitosamente' });
