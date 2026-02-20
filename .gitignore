@@ -64,3 +64,4 @@ config/local.json
 *.sqlite3
 *.db
 .agent/
+planificacion/
