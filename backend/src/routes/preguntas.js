@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../../config/database');
-const { executeQuery } = require('../utils/dbHelper');
+const Pregunta = require('../models/Pregunta'); // Importar el modelo de Mongoose
 
 router.get('/', async (req, res) => {
   const areaid = req.query.areaid;
@@ -10,23 +9,13 @@ router.get('/', async (req, res) => {
   }
 
   try {
-    const [rows] = await executeQuery(
-      pool,
-      'SELECT * FROM preguntas WHERE areaid = ? AND activa = 1 ORDER BY orden',
-      [areaid]
-    );
-    res.json(rows);
+    // Migrado a Mongoose: Buscar preguntas por área y activa=true
+    const preguntas = await Pregunta.find({ areaid: areaid, activa: true }).sort('orden');
+    res.json(preguntas);
   } catch (err) {
-    console.error('Error en preguntas completo:', {
-      message: err.message,
-      code: err.code,
-      sql: err.sql,
-      sqlState: err.sqlState,
-      stackTrace: err.stack
-    });
-    res.status(500).json({ 
-      error: err.message || 'Error desconocido',
-      code: err.code
+    console.error('Error en preguntas Mongoose:', err);
+    res.status(500).json({
+      error: err.message || 'Error desconocido'
     });
   }
 });
