@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Reportes de Asistencia - Admin</title>
+    <link rel="stylesheet" href="../../assets/css/admin.css">
+    <link rel="icon" type="image/png" href="../../assets/images/Sanilab-favicon.png" />
+</head>
+
+<body>
+    <div class="container">
+        <a href="/pages/asistencia/marcador.html" class="back-link">← Volver al Marcador </a>
+        <h1>Reporte Detallado de Asistencias</h1>
+
+        <div class="filters" style="margin-bottom: 20px;">
+            <input type="text" id="buscarEmpleado" placeholder="Buscar por Nombre o Apellido...">
+            <input type="date" id="filtroFecha">
+            <button id="btnFiltrarReporte">Filtrar</button>
+        </div>
+
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Empleado</th>
+                    <th>Área</th>
+                    <th>Estado</th>
+                    <th>Fecha</th>
+                    <th>Hora Entrada</th>
+                    <th>Hora Salida</th>
+                    <th>Total Trabajado</th>
+
+
+                </tr>
+            </thead>
+            <tbody id="tablaReportes">
+                <!-- Las filas se inyectarán aquí por JavaScript -->
+                <tr>
+                    <td colspan="6" style="text-align: center; color: #666;">
+                        <em>Cargando reportes desde la base de datos...</em>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Script que le dará vida a la tabla (Paso 2) -->
+    <script src="../../js/pages/reportes_admin.js"></script>
+</body>
+
+</html>

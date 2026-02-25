@@ -11,7 +11,7 @@ const seedAreas = async () => {
 
         const areas = [
             { nombre: 'Administración', descripcion: 'Área administrativa' },
-            { nombre: 'Sistemas', descripcion: 'Área Sistemas' }, // Agregado recientemente
+            { nombre: 'Sistemas', descripcion: 'Área Sistemas' },
             { nombre: 'Producción', descripcion: 'Área de producción' },
             { nombre: 'Calidad', descripcion: 'Control de calidad' },
             { nombre: 'Logística', descripcion: 'Gestión de inventarios' },

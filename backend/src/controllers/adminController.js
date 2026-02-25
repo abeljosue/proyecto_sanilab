@@ -24,12 +24,25 @@ exports.getHoras = async (req, res) => {
     }
 
     const asistencias = await Asistencia.find(filter)
-      .populate('usuarioid', 'nombre')
+      .populate({
+        path: 'usuarioid',
+        select: 'nombre apellido areaid',
+        populate: {
+          path: 'areaid',
+          select: 'nombre'
+        }
+      })
       .sort({ fecha: -1 });
 
     // Mapear resultado plano
     const rows = asistencias.map(a => {
       const u = a.usuarioid;
+
+      // Concatenar nombre y apellido limpiamente
+      const nombreCompleto = u ? `${u.nombre} ${u.apellido || ''}`.trim() : 'Desconocido';
+
+      // Extraer nombre del área si existe
+      const areaNombre = (u && u.areaid) ? u.areaid.nombre : '-';
 
       // Calcular formato HH:MM:SS para horatotal (segundos)
       const seconds = a.horas_trabajadas || 0;
@@ -38,8 +51,13 @@ exports.getHoras = async (req, res) => {
       const s = Math.floor(seconds % 60);
       const horatotal = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 
+      // Todos los registros aquí son de personas que marcaron entrada
+      const estado = a.horasalida ? 'Completado' : 'En Curso';
+
       return {
-        nombre: u ? u.nombre : 'Desconocido',
+        nombre: nombreCompleto,
+        area: areaNombre,
+        estado: estado,
         fecha: a.fecha.toISOString().split('T')[0],
         horaentrada: a.horaentrada,
         horasalida: a.horasalida,
