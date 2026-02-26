@@ -149,3 +149,42 @@ exports.exportHorasSheets = async (req, res) => {
 
 // Reutilizar lógica de asistencia si se necesita en admin
 exports.getAllAsistencias = exports.getHoras; // O adaptar según necesidad
+exports.getFaltantesHoy = async (req, res) => {
+  try {
+    const fechaActual = new Date();
+    const inicioDia = new Date(fechaActual.setHours(0, 0, 0));
+    const finDia = new Date(fechaActual.setHours(23, 59, 59));
+
+    const asistenciasHoy = await Asistencia.find({
+      fecha: {
+        $gte: inicioDia,
+        $lte: finDia
+      },
+      horaentrada: { $ne: null }
+    });
+
+    const idsQueAsistieron = asistenciasHoy.map(a => a.usuarioid);
+
+    const queryFaltante = await Usuario.find({
+      rol: 'usuario',
+      _id: { $nin: idsQueAsistieron }
+    }).populate('areaid', 'nombre');
+
+    const faltantes = queryFaltante.map(u => ({
+      id: u._id,
+      nombre: u.nombre,
+      apellido: u.apellido,
+      correo: u.correo,
+      area: u.areaid ? u.areaid.nombre : '_'
+    }));
+    res.json({
+      ok: true,
+      faltantes: faltantes,
+      total: faltantes.length,
+      fecha: fechaDia.toISOString().split('T')[0]
+    });
+  } catch (error) {
+    console.error('Error al obtener faltantes:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
