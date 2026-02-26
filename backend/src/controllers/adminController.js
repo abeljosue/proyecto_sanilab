@@ -181,7 +181,7 @@ exports.getFaltantesHoy = async (req, res) => {
       ok: true,
       faltantes: faltantes,
       total: faltantes.length,
-      fecha: fechaDia.toISOString().split('T')[0]
+      fecha: inicioDia.toISOString().split('T')[0]
     });
   } catch (error) {
     console.error('Error al obtener faltantes:', error);
