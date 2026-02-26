@@ -166,7 +166,7 @@ exports.getFaltantesHoy = async (req, res) => {
     const idsQueAsistieron = asistenciasHoy.map(a => a.usuarioid);
 
     const queryFaltante = await Usuario.find({
-      rol: 'usuario',
+      rol: 'USER',
       _id: { $nin: idsQueAsistieron }
     }).populate('areaid', 'nombre');
 
