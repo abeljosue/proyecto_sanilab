@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,6 +8,7 @@
   <link rel="stylesheet" href="../../assets/css/auth.css" />
   <link rel="icon" type="image/png" href="../../assets/images/Sanilab-favicon.png" />
 </head>
+
 <body>
   <div class="background"></div>
 
@@ -26,36 +28,25 @@
         <label for="apellido"><strong>Apellido</strong></label>
         <input type="text" id="apellido" name="apellido" required />
 
+
+
         <label for="correo"><strong>Correo electrónico</strong></label>
         <input type="email" id="correo" name="correo" required />
 
         <label for="password"><strong>Contraseña</strong></label>
         <div class="password-wrapper">
           <input type="password" id="password" name="password" required />
-          <button
-            type="button"
-            class="toggle-password"
-            onclick="togglePassword('password', this)"
-            aria-label="Mostrar contraseña"
-          >
+          <button type="button" class="toggle-password" onclick="togglePassword('password', this)"
+            aria-label="Mostrar contraseña">
             👁
           </button>
         </div>
 
         <label for="confirmPassword"><strong>Confirmar contraseña</strong></label>
         <div class="password-wrapper">
-          <input
-            type="password"
-            id="confirmPassword"
-            name="confirmPassword"
-            required
-          />
-          <button
-            type="button"
-            class="toggle-password"
-            onclick="togglePassword('confirmPassword', this)"
-            aria-label="Mostrar contraseña"
-          >
+          <input type="password" id="confirmPassword" name="confirmPassword" required />
+          <button type="button" class="toggle-password" onclick="togglePassword('confirmPassword', this)"
+            aria-label="Mostrar contraseña">
             👁
           </button>
         </div>
@@ -65,6 +56,9 @@
         <select id="area" name="area" required>
           <option value="" selected disabled>Selecciona un área</option>
         </select>
+
+        <label for="cumpleanos"><strong>Fecha de Nacimiento</strong></label>
+        <input type="date" id="cumpleanos" name="cumpleanos" required />
 
         <label><strong>Género</strong></label>
         <div class="radio-group">
@@ -103,4 +97,5 @@
   <script src="../../js/auth.js"></script>
   <script src="../../js/pages/registro.js"></script>
 </body>
+
 </html>

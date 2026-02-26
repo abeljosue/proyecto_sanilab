@@ -26,9 +26,9 @@ exports.getUsuarioById = async (req, res) => {
 
 exports.createUsuario = async (req, res) => {
   try {
-    const { correo, password, nombre, apellido, areaid, activo, genero } = req.body;
+    const { correo, password, nombre, apellido, areaid, activo, genero, cumpleanos } = req.body;
 
-    if (!correo || !password || !nombre || !apellido || !areaid || !genero) {
+    if (!correo || !password || !nombre || !apellido || !areaid || !genero || !cumpleanos) {
       return res.status(400).json({ error: 'Todos los campos son obligatorios' });
     }
 
@@ -61,6 +61,7 @@ exports.createUsuario = async (req, res) => {
       apellido,
       areaid, // ObjectId
       genero: generoMapeado,
+      cumpleanos,
       activo: activoRaw,
       rol: 'USER'
     });

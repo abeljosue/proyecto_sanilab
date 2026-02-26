@@ -53,9 +53,9 @@ exports.login = async (req, res) => {
 
 exports.registro = async (req, res) => {
   try {
-    const { nombre, apellido, correo, password, areaid, genero } = req.body;
+    const { nombre, apellido, correo, password, areaid, genero, cumpleanos } = req.body;
 
-    if (!nombre || !apellido || !correo || !password || !areaid || !genero) {
+    if (!nombre || !apellido || !correo || !password || !areaid || !genero || !cumpleanos) {
       return res.status(400).json({ error: 'Todos los campos son obligatorios' });
     }
 
@@ -76,6 +76,7 @@ exports.registro = async (req, res) => {
       apellido,
       areaid,
       genero,
+      cumpleanos,
       activo: 'SI',
       rol: 'USER'
     });

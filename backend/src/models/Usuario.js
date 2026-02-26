@@ -32,6 +32,11 @@ const usuarioSchema = new mongoose.Schema({
     enum: ['Masculino', 'Femenino', 'Otro', null],
     default: null
   },
+  cumpleanos: {
+    type: String,
+    trim: true,
+    default: null
+  },
   rol: {
     type: String,
     enum: ['USER', 'ADMIN'],
