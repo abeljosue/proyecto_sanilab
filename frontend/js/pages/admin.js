@@ -194,7 +194,7 @@ if (btnVerFaltantes) {
         faltantes.forEach(f => {
           tbody.innerHTML += `
             <tr>
-              <td>${f.id}</td>
+              
               <td>${f.nombre}</td>
               <td>${f.apellido || '—'}</td>
               <td>${f.correo}</td>
