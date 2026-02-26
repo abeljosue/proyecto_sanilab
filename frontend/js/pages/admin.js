@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
   const token = localStorage.getItem('token');
   if (!token) {
     alert('Sesión no válida');
@@ -58,17 +58,20 @@ async function cargarHoras() {
 
     datos.forEach(row => {
       const horaEntrada = row.horaentrada ? row.horaentrada.substring(0, 5) : '--:--';
-      const horaSalida  = row.horasalida  ? row.horasalida.substring(0, 5)  : '--:--';
-      const totalHoras  = formatearHoraTotal(row.horatotal);
-      const fecha       = formatearFechaISO(row.fecha);
+      const horaSalida = row.horasalida ? row.horasalida.substring(0, 5) : '--:--';
+      const totalHoras = formatearHoraTotal(row.horatotal);
+      const fecha = formatearFechaISO(row.fecha);
+      const colorEstado = row.estado === 'Completado' ? '#4caf50' : '#ff9800';
 
       tbody.innerHTML += `
         <tr>
-          <td>${row.nombre}</td>
+          <td><strong>${row.nombre}</strong></td>
+          <td>${row.area}</td>
+          <td style="color:${colorEstado};font-weight: bold;">${row.estado}</td>
           <td>${fecha}</td>
           <td>${horaEntrada}</td>
           <td>${horaSalida}</td>
-          <td>${totalHoras}</td>
+          <td><strong>${totalHoras}</strong></td>
         </tr>
       `;
     });
@@ -137,7 +140,7 @@ async function exportarAGoogleSheets() {
 
     if (data.success) {
       const sheetsUrl = data.spreadsheetUrl;
-      
+
       Swal.fire({
         icon: 'success',
         title: '¡Exportación Exitosa!',
