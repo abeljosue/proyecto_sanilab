@@ -6,6 +6,7 @@ document.getElementById('registroForm').addEventListener('submit', async functio
   const correo = document.getElementById('correo').value;
   const password = document.getElementById('password').value;
   const areaid = document.getElementById('area').value;
+  const cumpleanos = document.getElementById('cumpleanos').value;
 
   const generoInput = document.querySelector('input[name="genero"]:checked');
   const genero = generoInput ? generoInput.value : '';
@@ -25,6 +26,7 @@ document.getElementById('registroForm').addEventListener('submit', async functio
         correo,
         password,
         areaid,
+        cumpleanos,
         genero
       })
     });
