@@ -15,9 +15,9 @@
     <h1>Panel Administrativo</h1>
 
     <div class="filters">
-      <input type="text" id="buscarNombre" placeholder="Buscar por nombre">
-      <input type="date" id="fechaDesde">
-      <input type="date" id="fechaHasta">
+      <input type="search" id="buscarNombre" placeholder="Buscar por persona..." autocomplete="off">
+      <input type="date" id="fechaDesde" title="Fecha de inicio (Desde)">
+      <input type="date" id="fechaHasta" title="Fecha límite (Hasta)">
       <button id="btnFiltrarHoras">Filtrar horas</button>
       <button id="btnFiltrarPuntajes">Filtrar puntajes</button>
       <button id="btnExportarSheets" class="btn-export-sheets">📊 Exportar a Google Sheets</button>
@@ -34,7 +34,7 @@
       <table class="table">
         <thead>
           <tr>
-            <th>ID</th>
+
             <th>Nombre</th>
             <th>Apellido</th>
             <th>Correo</th>

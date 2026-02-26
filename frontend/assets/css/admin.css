@@ -92,6 +92,11 @@ h2::before {
   color: #6b7280;
 }
 
+.filters input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
 .filters button {
   padding: 0 14px;
   background: linear-gradient(135deg, #22c55e, #16a34a);
@@ -246,4 +251,3 @@ h2::before {
   margin-bottom: 15px;
   font-weight: 300;
 }
-
