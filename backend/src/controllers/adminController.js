@@ -12,8 +12,12 @@ exports.getHoras = async (req, res) => {
     let filter = {};
     if (fechaDesde || fechaHasta) {
       filter.fecha = {};
-      if (fechaDesde) filter.fecha.$gte = new Date(fechaDesde);
-      if (fechaHasta) filter.fecha.$lte = new Date(fechaHasta);
+      if (fechaDesde) {
+        filter.fecha.$gte = new Date(`${fechaDesde}T00:00:00.000Z`);
+      }
+      if (fechaHasta) {
+        filter.fecha.$lte = new Date(`${fechaHasta}T23:59:59.999Z`);
+      }
     }
 
     // Para filtrar por nombre (que está en otra colección), primero buscamos usuarios
