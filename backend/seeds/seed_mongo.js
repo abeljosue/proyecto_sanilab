@@ -10,16 +10,20 @@ const seedAreas = async () => {
         await connectDB();
 
         const areas = [
-            { nombre: 'Administración', descripcion: 'Área administrativa' },
-            { nombre: 'Sistemas', descripcion: 'Área Sistemas' },
-            { nombre: 'Producción', descripcion: 'Área de producción' },
-            { nombre: 'Calidad', descripcion: 'Control de calidad' },
-            { nombre: 'Logística', descripcion: 'Gestión de inventarios' },
-            { nombre: 'Ventas', descripcion: 'Gestión comercial' },
-            { nombre: 'Recursos Humanos', descripcion: 'Gestión de personal' },
-            { nombre: 'Desarrollo', descripcion: 'Sistemas y tecnología' },
-            { nombre: 'Diseño', descripcion: 'Diseño y publicidad' },
-            { nombre: 'Marketing', descripcion: 'Marketing digital' }
+            { nombre: 'MEDIO AMBIENTE', descripcion: 'Acrónimo: AMB' },
+            { nombre: 'PROYECTOS', descripcion: 'Acrónimo: PROY' },
+            { nombre: 'INFRAESTRUCTURA', descripcion: 'Acrónimo: INFR' },
+            { nombre: 'GERENCIA', descripcion: 'Acrónimo: GRN' },
+            { nombre: 'GTH', descripcion: 'Acrónimo: GTH' },
+            { nombre: 'DISEÑO GRAFICO ', descripcion: 'Acrónimo: GRAF' },
+            { nombre: 'FINANZAS', descripcion: 'Acrónimo: FIN' },
+            { nombre: 'CONTABILIDAD', descripcion: 'Acrónimo: CONT' },
+            { nombre: 'SISTEMAS', descripcion: 'Acrónimo: SIST' },
+            { nombre: 'TALLER', descripcion: 'Acrónimo: TALLER' },
+            { nombre: 'MARKETING', descripcion: 'Acrónimo: MRK' },
+            { nombre: 'LEGAL', descripcion: 'LEGA' },
+            { nombre: 'COMERCIAL', descripcion: 'COMERC' },
+            { nombre: 'N/A', descripcion: 'N/A' }
         ];
 
         console.log('🌱 Sembrando áreas en MongoDB...');

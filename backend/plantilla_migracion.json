@@ -1,0 +1,45 @@
+[
+    {
+        "nombre": "Juan",
+        "apellido": "Perez",
+        "correo": "juan.perez@empresa.com",
+        "genero": "Masculino",
+        "cumpleanos": "1990-05-15",
+        "area_nombre": "Ventas",
+        "rol": "USER",
+        "asistencias_historicas": [
+            {
+                "fecha": "2026-02-01",
+                "horaentrada": "08:00",
+                "horasalida": "17:00",
+                "comentarios": "Migración histórica",
+                "estado": "Jornada terminada"
+            },
+            {
+                "fecha": "2026-02-02",
+                "horaentrada": "08:15",
+                "horasalida": "17:05",
+                "comentarios": "Llegó tarde 15 min",
+                "estado": "Jornada terminada"
+            }
+        ]
+    },
+    {
+        "nombre": "Maria",
+        "apellido": "Gomez",
+        "correo": "maria.gomez@empresa.com",
+        "genero": "Femenino",
+        "cumpleanos": "1992-10-20",
+        "area_nombre": "Recursos Humanos",
+        "rol": "ADMIN",
+        "asistencias_historicas": [
+            {
+                "fecha": "2026-02-01",
+                "horaentrada": "09:00",
+                "horasalida": "18:00",
+                "comentarios": "",
+                "estado": "Jornada terminada"
+            }
+        ]
+    }
+]
