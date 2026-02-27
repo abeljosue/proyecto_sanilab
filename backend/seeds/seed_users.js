@@ -17,16 +17,17 @@ const seedUsers = async () => {
             area = await Area.create({ nombre: 'Sistemas', descripcion: 'Área de TI' });
         }
 
-        const passwordHash = await bcrypt.hash('password123', 10);
+        const passwordHash = await bcrypt.hash('sanilab2026', 10);
 
         const users = [
             {
-                nombre: 'Admin',
-                apellido: 'Sistema',
+                nombre: 'Administador',
+                apellido: 'Sistemas',
                 correo: 'admin@sanilab.com',
                 passwordhash: passwordHash,
                 areaid: area._id,
                 genero: 'Masculino',
+                cumpleanos: '2000-01-01',
                 rol: 'ADMIN',
                 activo: 'SI'
             },
@@ -37,6 +38,7 @@ const seedUsers = async () => {
                 passwordhash: passwordHash,
                 areaid: area._id,
                 genero: 'Masculino',
+                cumpleanos: '2000-01-01',
                 rol: 'USER',
                 activo: 'SI'
             }
