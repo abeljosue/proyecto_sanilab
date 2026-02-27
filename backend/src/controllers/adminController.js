@@ -155,15 +155,11 @@ exports.exportHorasSheets = async (req, res) => {
 exports.getAllAsistencias = exports.getHoras; // O adaptar según necesidad
 exports.getFaltantesHoy = async (req, res) => {
   try {
-    const fechaActual = new Date();
-    const inicioDia = new Date(fechaActual.setHours(0, 0, 0));
-    const finDia = new Date(fechaActual.setHours(23, 59, 59));
+    const hoy = new Date();
+    const fechaHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
 
     const asistenciasHoy = await Asistencia.find({
-      fecha: {
-        $gte: inicioDia,
-        $lte: finDia
-      },
+      fecha: fechaHoy,
       horaentrada: { $ne: null }
     });
 
@@ -185,7 +181,7 @@ exports.getFaltantesHoy = async (req, res) => {
       ok: true,
       faltantes: faltantes,
       total: faltantes.length,
-      fecha: inicioDia.toISOString().split('T')[0]
+      fecha: fechaHoy.toISOString().split('T')[0]
     });
   } catch (error) {
     console.error('Error al obtener faltantes:', error);
