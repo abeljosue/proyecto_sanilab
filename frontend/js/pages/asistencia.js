@@ -188,9 +188,29 @@ async function marcarEntrada() {
 }
 
 async function marcarSalida(tipo) {
-  // tipo: 'pausa' o 'fin'
-  await enviarAccion('/api/asistencias/salida', { tipo }, tipo === 'pausa' ? 'Pausa registrada' : 'Jornada finalizada');
+  // Si el usuario quiere terminar definitivamente, levantamos las alarmas
+  if (tipo === 'fin') {
+    Swal.fire({
+      title: '¿Terminar Jornada?',
+      text: "Una vez finalizada, el reloj se detendrá y no podrás registrar más pausas ni volver a entrar por el resto del día.",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#e11d48', // Un rojo peligro
+      cancelButtonColor: '#6b7280',  // Gris neutral
+      confirmButtonText: 'Sí, finalizar hoy',
+      cancelButtonText: 'Cancelar'
+    }).then(async (result) => {
+      // Solo si el usuario hace clic afirmativo afirmativo:
+      if (result.isConfirmed) {
+        await enviarAccion('/api/asistencias/salida', { tipo }, 'Jornada finalizada exitosamente');
+      }
+    });
+  } else {
+    // Si solo es una pausa ('pausa'), lo dejamos pasar directo sin molestar
+    await enviarAccion('/api/asistencias/salida', { tipo }, 'Pausa registrada');
+  }
 }
+
 
 async function enviarAccion(endpoint, extraData, successMsg) {
   try {
