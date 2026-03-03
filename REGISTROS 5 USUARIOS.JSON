@@ -1,0 +1,344 @@
+[
+  {
+    "nombre": "Katherine",
+    "apellido": "Ruby Ortega Villanueva",
+    "correo": "katherine.ortega.infr.976050998@gmail.com",
+    "genero": "Femenino",
+    "cumpleanos": "2002-10-25",
+    "area_nombre": "INFRAESTRUCTURA",
+    "rol": "USER",
+    "asistencias_historicas": [
+      {
+        "fecha": "2026-02-17",
+        "horaentrada": "08:58:58",
+        "horasalida": "14:20:02",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-18",
+        "horaentrada": "08:01:49",
+        "horasalida": "14:51:43",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-19",
+        "horaentrada": "08:00:06",
+        "horasalida": "14:14:29",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-21",
+        "horaentrada": "08:33:22",
+        "horasalida": "14:34:25",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-23",
+        "horaentrada": "16:41:48",
+        "horasalida": "20:20:37",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      }
+    ]
+  },
+  {
+    "nombre": "Sandra",
+    "apellido": "del Rosario Sanchez Acevedo",
+    "correo": "sandra.sanchez.proy.901180609@gmail.com",
+    "genero": "Femenino",
+    "cumpleanos": "2002-04-02",
+    "area_nombre": "PROYECTOS",
+    "rol": "USER",
+    "asistencias_historicas": [
+      {
+        "fecha": "2026-02-18",
+        "horaentrada": "08:00:39",
+        "horasalida": "14:14:21",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-19",
+        "horaentrada": "08:15:27",
+        "horasalida": "14:07:20",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-20",
+        "horaentrada": "08:09:58",
+        "horasalida": "14:10:05",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-21",
+        "horaentrada": "14:26:35",
+        "horasalida": "23:27:30",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-23",
+        "horaentrada": "08:06:34",
+        "horasalida": "14:36:38",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-24",
+        "horaentrada": "08:22:00",
+        "horasalida": "14:25:44",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-25",
+        "horaentrada": "08:50:27",
+        "horasalida": "14:29:22",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-26",
+        "horaentrada": "08:35:13",
+        "horasalida": "14:01:28",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-27",
+        "horaentrada": "08:24:39",
+        "horasalida": "14:14:30",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-28",
+        "horaentrada": "14:00:33",
+        "horasalida": "20:00:33",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-03-02",
+        "horaentrada": "08:00:20",
+        "horasalida": "",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      }
+    ]
+  },
+  {
+    "nombre": "Ivan",
+    "apellido": "Garcia Hinostroza",
+    "correo": "ivan.garcia.mrk.932043224@gmail.com",
+    "genero": "Masculino",
+    "cumpleanos": "2003-08-17",
+    "area_nombre": "MARKETING",
+    "rol": "USER",
+    "asistencias_historicas": [
+      {
+        "fecha": "2026-02-18",
+        "horaentrada": "08:05:41",
+        "horasalida": "14:01:10",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-19",
+        "horaentrada": "08:07:07",
+        "horasalida": "14:12:09",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-20",
+        "horaentrada": "08:06:17",
+        "horasalida": "14:08:27",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-23",
+        "horaentrada": "08:03:11",
+        "horasalida": "14:03:23",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-25",
+        "horaentrada": "08:03:53",
+        "horasalida": "14:35:32",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-26",
+        "horaentrada": "08:11:12",
+        "horasalida": "14:02:12",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-27",
+        "horaentrada": "08:10:19",
+        "horasalida": "14:07:15",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      }
+    ]
+  },
+  {
+    "nombre": "Nina",
+    "apellido": "Alondra Mestanza Morales",
+    "correo": "nina.mestanza.amb.976959861@gmail.com",
+    "genero": "Femenino",
+    "cumpleanos": "2003-02-22",
+    "area_nombre": "MEDIO AMBIENTE",
+    "rol": "USER",
+    "asistencias_historicas": [
+      {
+        "fecha": "2026-02-17",
+        "horaentrada": "14:01:11",
+        "horasalida": "19:32:47",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-18",
+        "horaentrada": "10:02:23",
+        "horasalida": "19:55:21",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-19",
+        "horaentrada": "08:12:18",
+        "horasalida": "18:18:04",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-20",
+        "horaentrada": "14:10:22",
+        "horasalida": "19:10:28",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-23",
+        "horaentrada": "08:02:11",
+        "horasalida": "17:04:07",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-24",
+        "horaentrada": "08:01:19",
+        "horasalida": "18:08:58",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-25",
+        "horaentrada": "08:36:00",
+        "horasalida": "18:01:26",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-26",
+        "horaentrada": "08:01:04",
+        "horasalida": "21:17:09",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-27",
+        "horaentrada": "08:04:37",
+        "horasalida": "18:08:40",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-03-02",
+        "horaentrada": "09:08:10",
+        "horasalida": "",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      }
+    ]
+  },
+  {
+    "nombre": "Daniel",
+    "apellido": "Alonso Vigo Vásquez ",
+    "correo": "daniel.vigo.amb.907577815@gmail.com",
+    "genero": "Masculino",
+    "cumpleanos": "2002-08-31",
+    "area_nombre": "MEDIO AMBIENTE",
+    "rol": "USER",
+    "asistencias_historicas": [
+      {
+        "fecha": "2026-02-17",
+        "horaentrada": "08:59:03",
+        "horasalida": "17:20:45",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-18",
+        "horaentrada": "07:58:57",
+        "horasalida": "17:07:46",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-19",
+        "horaentrada": "08:06:02",
+        "horasalida": "17:35:30",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-20",
+        "horaentrada": "09:03:04",
+        "horasalida": "22:03:52",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-23",
+        "horaentrada": "08:00:21",
+        "horasalida": "23:55:08",
+        "comentarios": "Cierre automático diario",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-24",
+        "horaentrada": "08:00:42",
+        "horasalida": "19:41:19",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-25",
+        "horaentrada": "08:41:45",
+        "horasalida": "20:24:08",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-26",
+        "horaentrada": "08:02:07",
+        "horasalida": "18:44:24",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      }
+    ]
+  }
+]
