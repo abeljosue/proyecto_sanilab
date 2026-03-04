@@ -72,6 +72,12 @@ async function cargarHoras() {
           <td>${horaEntrada}</td>
           <td>${horaSalida}</td>
           <td><strong>${totalHoras}</strong></td>
+          <td>
+            <button class="btn-editar" style="cursor:pointer; padding:5px 10px; background:#ff9800; color:white; border:none; border-radius:4px;" 
+                    onclick="abrirModalEdicion('${row._id}', '${row.nombre}', '${row.horaentrada || ''}', '${row.horasalida || ''}')">
+              ✏️ Editar
+            </button>
+          </td>
         </tr>
       `;
     });
@@ -194,7 +200,6 @@ if (btnVerFaltantes) {
         faltantes.forEach(f => {
           tbody.innerHTML += `
             <tr>
-              
               <td>${f.nombre}</td>
               <td>${f.apellido || '—'}</td>
               <td>${f.correo}</td>

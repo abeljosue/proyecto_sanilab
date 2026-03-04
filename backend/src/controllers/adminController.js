@@ -59,6 +59,7 @@ exports.getHoras = async (req, res) => {
       const estado = a.horasalida ? 'Completado' : 'En Curso';
 
       return {
+        _id: a._id,
         nombre: nombreCompleto,
         area: areaNombre,
         estado: estado,

@@ -56,6 +56,7 @@
           <th>Hora Entrada</th>
           <th>Hora Salida</th>
           <th>Horas Totales</th>
+          <th>Acciones</th>
         </tr>
       </thead>
       <tbody id="tablaHoras"></tbody>
@@ -73,6 +74,30 @@
       </thead>
       <tbody id="tablaPuntajes"></tbody>
     </table>
+  </div>
+  <!-- MODAL PARA EDITAR HORAS -->
+  <div id="modalEditarHoras"
+    style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1000; justify-content:center; align-items:center;">
+    <div style="background:white; padding:20px; border-radius:8px; width:350px; color:black; font-family:sans-serif;">
+      <h3 style="margin-top:0;">Editar Asistencia</h3>
+      <p id="modalEditNombre" style="font-weight:bold;"></p>
+
+      <label style="display:block; margin-bottom:5px;">Hora de Entrada (HH:mm)</label>
+      <input type="time" id="inputEditEntrada"
+        style="width:100%; padding:8px; margin-bottom:15px; border:1px solid #ccc; border-radius:4px;">
+
+      <label style="display:block; margin-bottom:5px;">Hora de Salida (HH:mm)</label>
+      <input type="time" id="inputEditSalida"
+        style="width:100%; padding:8px; margin-bottom:15px; border:1px solid #ccc; border-radius:4px;">
+
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button id="btnCerrarModal"
+          style="padding:8px 15px; border:none; background:#ccc; cursor:pointer; border-radius:4px;">Cancelar</button>
+        <button id="btnGuardarEdicion"
+          style="padding:8px 15px; border:none; background:#007bff; color:white; cursor:pointer; border-radius:4px;">Guardar
+          Cambios</button>
+      </div>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
