@@ -1,0 +1,125 @@
+[
+  {
+    "nombre": "Percy",
+    "apellido": "Israel Arauco Flores",
+    "correo": "percy.arauco.sist.971995910@gmail.com",
+    "genero": "Masculino",
+    "cumpleanos": "1995-02-23",
+    "area_nombre": "SISTEMAS",
+    "rol": "USER",
+    "asistencias_historicas": [
+      {
+        "fecha": "2026-02-09",
+        "horaentrada": "23:31:59",
+        "horasalida": "23:32:18",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-10",
+        "horaentrada": "22:29:27",
+        "horasalida": "17:02:03",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-11",
+        "horaentrada": "09:22:23",
+        "horasalida": "09:22:16",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-12",
+        "horaentrada": "08:26:46",
+        "horasalida": "",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-13",
+        "horaentrada": "13:17:40",
+        "horasalida": "23:55:07",
+        "comentarios": "Cierre automático diario",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-16",
+        "horaentrada": "08:01:49",
+        "horasalida": "23:55:07",
+        "comentarios": "Cierre automático diario",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-18",
+        "horaentrada": "09:33:30",
+        "horasalida": "23:55:07",
+        "comentarios": "Cierre automático diario",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-19",
+        "horaentrada": "07:03:21",
+        "horasalida": "17:07:28",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-20",
+        "horaentrada": "08:26:54",
+        "horasalida": "23:55:06",
+        "comentarios": "Cierre automático diario",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-23",
+        "horaentrada": "08:00:09",
+        "horasalida": "17:06:03",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-24",
+        "horaentrada": "08:03:18",
+        "horasalida": "23:55:07",
+        "comentarios": "Cierre automático diario",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-25",
+        "horaentrada": "08:09:11",
+        "horasalida": "23:55:07",
+        "comentarios": "Cierre automático diario",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-26",
+        "horaentrada": "07:59:35",
+        "horasalida": "19:27:57",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-02-27",
+        "horaentrada": "14:22:30",
+        "horasalida": "23:55:07",
+        "comentarios": "Cierre automático diario",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-03-02",
+        "horaentrada": "08:14:55",
+        "horasalida": "17:59:24",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      },
+      {
+        "fecha": "2026-03-03",
+        "horaentrada": "08:00:06",
+        "horasalida": "",
+        "comentarios": "Migración histórica",
+        "estado": "Jornada terminada"
+      }
+    ]
+  }
+]

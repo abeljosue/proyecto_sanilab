@@ -13,7 +13,7 @@ async function ejecutarimportacion() {
         await mongoose.connect(process.env.MONGO_URI);
         console.log('conexion exitosa a MongoDB');
 
-        const rutaJSON = './REGISTROS 5 USUARIOS.JSON';
+        const rutaJSON = './TODOS LOS REGISTROS - 20260304 - 10AM.JSON';
         console.log(`leyendo archivo historico: ${rutaJSON}`);
 
         const archivooCrudo = fs.readFileSync(rutaJSON, 'utf-8');
