@@ -23,7 +23,7 @@ const seedUsers = async () => {
             {
                 nombre: 'Administador',
                 apellido: 'Sistemas',
-                correo: 'admin@sanilab.com',
+                correo: 'sistemas@sanilab.com',
                 passwordhash: passwordHash,
                 areaid: area._id,
                 genero: 'Masculino',
@@ -32,9 +32,9 @@ const seedUsers = async () => {
                 activo: 'SI'
             },
             {
-                nombre: 'ABEL',
-                apellido: 'HUANCA',
-                correo: 'abel.huanca.sist.986762141@gmail.com',
+                nombre: 'MARIANO',
+                apellido: 'PEREZ',
+                correo: 'mariano.perez.sist.999666888@gmail.com',
                 passwordhash: passwordHash,
                 areaid: area._id,
                 genero: 'Masculino',
