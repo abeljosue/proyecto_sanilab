@@ -213,8 +213,15 @@ exports.updateHoras = async (req, res) => {
       // Necesitamos la fecha base de la asistencia para que JS pueda restarlas.
       const fechaCorta = asistencia.fecha.toISOString().split('T')[0]; // Ejemplo: "2026-03-04"
 
-      const objEntrada = new Date(`${fechaCorta}T${asistencia.horaentrada}:00`);
-      const objSalida = new Date(`${fechaCorta}T${asistencia.horasalida}:00`);
+      // Aseguramos formato HH:mm:ss verificando si la longitud de texto es de 5 caracteres
+      const entrada = asistencia.horaentrada.lenght === 5 ?
+        `${asistencia.horaentrada}:00` : asistencia.horaentrada;
+      const salida = asistencia.horasalida.lenght === 5 ?
+        `${asistencia.horasalida}:00` : asistencia.horasalida;
+
+      // Armamos los objetos Date limpios, ya sin tener que pegarles ":00" de manera ciega
+      const objEntrada = new Date(`${fechaCorta}T${entrada}`);
+      const objSalida = new Date(`${fechaCorta}T${salida}`);
 
       // Restamos los objetos Date (esto da milisegundos)
       let diffMs = objSalida - objEntrada;
