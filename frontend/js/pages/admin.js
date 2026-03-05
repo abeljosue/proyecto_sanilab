@@ -72,6 +72,12 @@ async function cargarHoras() {
           <td>${horaEntrada}</td>
           <td>${horaSalida}</td>
           <td><strong>${totalHoras}</strong></td>
+          <td>
+            <button class="btn-editar" style="cursor:pointer; padding:5px 10px; background:#ff9800; color:white; border:none; border-radius:4px;" 
+                    onclick="abrirModalEdicion('${row._id}', '${row.nombre}', '${row.horaentrada || ''}', '${row.horasalida || ''}')">
+              ✏️ Editar
+            </button>
+          </td>
         </tr>
       `;
     });
@@ -194,7 +200,6 @@ if (btnVerFaltantes) {
         faltantes.forEach(f => {
           tbody.innerHTML += `
             <tr>
-              
               <td>${f.nombre}</td>
               <td>${f.apellido || '—'}</td>
               <td>${f.correo}</td>
@@ -211,6 +216,98 @@ if (btnVerFaltantes) {
     } finally {
       btnVerFaltantes.textContent = 'Ver quiénes no han marcado entrada hoy';
       btnVerFaltantes.disabled = false;
+    }
+  });
+}
+// Variable global para almacenar el ID que estamos editando actualmente
+let edicionAsistenciaId = null;
+
+// Referencias a los elementos del Modal
+const modalEditarHoras = document.getElementById('modalEditarHoras');
+const btnCerrarModal = document.getElementById('btnCerrarModal');
+const btnGuardarEdicion = document.getElementById('btnGuardarEdicion');
+const modalEditNombre = document.getElementById('modalEditNombre');
+const inputEditEntrada = document.getElementById('inputEditEntrada');
+const inputEditSalida = document.getElementById('inputEditSalida');
+
+// FUNCIÓN 1: Abrir el modal desde el botón de la tabla
+// (Esta función debe llamarse exactamente "abrirModalEdicion" porque así la pusimos en el HTML)
+window.abrirModalEdicion = function (id, nombre, entrada, salida) {
+  // Guardamos el ID en la variable global
+  edicionAsistenciaId = id;
+
+  // Pre-llenamos el Modal con los datos actuales
+  modalEditNombre.textContent = nombre;
+  inputEditEntrada.value = entrada && entrada !== '--:--' ? entrada : '';
+  inputEditSalida.value = salida && salida !== '--:--' ? salida : '';
+
+  // Mostramos visualmente el modal
+  modalEditarHoras.style.display = 'flex';
+};
+
+// FUNCIÓN 2: Cerrar el modal
+if (btnCerrarModal) {
+  btnCerrarModal.addEventListener('click', () => {
+    modalEditarHoras.style.display = 'none';
+    edicionAsistenciaId = null; // Limpiamos la variable
+  });
+}
+
+// FUNCIÓN 3: Enviar la petición PUT al Backend
+if (btnGuardarEdicion) {
+  btnGuardarEdicion.addEventListener('click', async () => {
+
+    // Obtener los datos mapeados del formulario
+    const horaentrada = inputEditEntrada.value;
+    const horasalida = inputEditSalida.value;
+
+    // Validación básica
+    if (!edicionAsistenciaId) {
+      alert("Error: No se encontró el ID de la asistencia.");
+      return;
+    }
+
+    try {
+      // Bloqueamos el botón visualmente para evitar doble click
+      btnGuardarEdicion.textContent = 'Guardando...';
+      btnGuardarEdicion.disabled = true;
+
+      const token = localStorage.getItem('token');
+
+      // La llamada axios con método PUT hacia la ruta que tú mismo creaste
+      const res = await axios.put(`/api/admin/horas/${edicionAsistenciaId}`, {
+        horaentrada: horaentrada,
+        horasalida: horasalida
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (res.data.success) {
+        // Mostramos un mensaje feliz
+        Swal.fire({
+          icon: 'success',
+          title: 'Horas actualizadas',
+          text: 'Se recalcularon las horas correctamente',
+          timer: 2000,
+          showConfirmButton: false
+        });
+
+        // Cerramos el modal
+        modalEditarHoras.style.display = 'none';
+
+        // Recargamos la tabla para ver las horas totales nuevas matemáticamente!
+        cargarHoras();
+      } else {
+        throw new Error(res.data.error || 'Error desconocido al guardar.');
+      }
+
+    } catch (error) {
+      console.error('Error al editar horas:', error);
+      Swal.fire('Error', error.response?.data?.error || error.message, 'error');
+    } finally {
+      // Devolvemos el botón a la normalidad
+      btnGuardarEdicion.textContent = 'Guardar Cambios';
+      btnGuardarEdicion.disabled = false;
     }
   });
 }

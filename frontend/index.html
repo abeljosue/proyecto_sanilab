@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sanilab | Login</title>
+  <title>Checklist</title>
   <link rel="stylesheet" href="assets/css/auth.css" />
   <link rel="icon" type="image/png" href="assets/images/Sanilab-favicon.png" />
 </head>
+
 <body>
   <div class="background"></div>
 
@@ -23,29 +25,13 @@
 
       <form id="loginForm" autocomplete="off">
         <label for="correo"><strong>Correo electrónico</strong></label>
-        <input
-          type="email"
-          id="correo"
-          name="correo"
-          placeholder="ejemplo@correo.com"
-          required
-        />
+        <input type="email" id="correo" name="correo" placeholder="ejemplo@correo.com" required />
 
         <label for="password"><strong>Contraseña</strong></label>
         <div class="password-wrapper">
-          <input
-            type="password"
-            id="password"
-            name="password"
-            placeholder="••••••••"
-            required
-          />
-          <button
-            type="button"
-            class="toggle-password"
-            onclick="togglePassword('password', this)"
-            aria-label="Mostrar contraseña"
-          >
+          <input type="password" id="password" name="password" placeholder="••••••••" required />
+          <button type="button" class="toggle-password" onclick="togglePassword('password', this)"
+            aria-label="Mostrar contraseña">
             👁
           </button>
         </div>
@@ -71,7 +57,7 @@
   <div id="helpModal" class="help-modal-overlay">
     <div class="help-modal-content">
       <button class="help-close" onclick="closeHelpModal()" aria-label="Cerrar">×</button>
-      
+
       <div class="help-header">
         <div class="help-icon-large">📋</div>
         <h2>Guía del Sistema Checklist</h2>
@@ -80,7 +66,9 @@
       <div class="help-body">
         <div class="help-section">
           <h3>🎯 1. Objetivo</h3>
-          <p>Establecer los lineamientos para el correcto uso del sistema de Checklist de Asistencia y Autoevaluación, con el fin de registrar la jornada laboral, evaluar el desempeño diario y fomentar la mejora continua de los colaboradores de Sanilab.</p>
+          <p>Establecer los lineamientos para el correcto uso del sistema de Checklist de Asistencia y Autoevaluación,
+            con el fin de registrar la jornada laboral, evaluar el desempeño diario y fomentar la mejora continua de los
+            colaboradores de Sanilab.</p>
         </div>
 
         <div class="help-section">
@@ -93,7 +81,8 @@
             <li>Área correspondiente</li>
             <li>Género</li>
           </ul>
-          <p>Una vez registrado, el acceso al sistema se realizará utilizando el correo electrónico y la contraseña corporativa.</p>
+          <p>Una vez registrado, el acceso al sistema se realizará utilizando el correo electrónico y la contraseña
+            corporativa.</p>
         </div>
 
         <div class="help-section">
@@ -102,7 +91,8 @@
           <ul>
             <li>Seleccionar <strong>"Marcar Entrada"</strong> al inicio de su jornada laboral</li>
             <li>Seleccionar <strong>"Marcar Salida"</strong> al finalizar su turno</li>
-            <li>El sistema permite registrar múltiples entradas y salidas en un mismo día en caso de realizar doble turno</li>
+            <li>El sistema permite registrar múltiples entradas y salidas en un mismo día en caso de realizar doble
+              turno</li>
           </ul>
         </div>
 
@@ -138,7 +128,8 @@
             <li>Es recomendable mantener actualizada tu lista diaria de tareas</li>
             <li>Notion te ayudará a organizar mejor tu trabajo y cumplir con tus objetivos</li>
           </ul>
-          <p class="tip">💡 <strong>Tip:</strong> Usa Notion para planificar tus actividades antes de iniciar tu jornada laboral.</p>
+          <p class="tip">💡 <strong>Tip:</strong> Usa Notion para planificar tus actividades antes de iniciar tu jornada
+            laboral.</p>
         </div>
 
         <div class="help-section">
@@ -157,7 +148,7 @@
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/pages/login.js"></script>
-  
+
   <script>
     function toggleHelpModal() {
       const modal = document.getElementById('helpModal');
@@ -182,11 +173,12 @@
       }, 300);
     }
 
-    document.getElementById('helpModal').addEventListener('click', function(e) {
+    document.getElementById('helpModal').addEventListener('click', function (e) {
       if (e.target === this) {
         closeHelpModal();
       }
     });
   </script>
 </body>
+
 </html>

@@ -59,6 +59,7 @@ exports.getHoras = async (req, res) => {
       const estado = a.horasalida ? 'Completado' : 'En Curso';
 
       return {
+        _id: a._id,
         nombre: nombreCompleto,
         area: areaNombre,
         estado: estado,
@@ -186,5 +187,67 @@ exports.getFaltantesHoy = async (req, res) => {
   } catch (error) {
     console.error('Error al obtener faltantes:', error);
     res.status(500).json({ error: error.message });
+  }
+};
+exports.updateHoras = async (req, res) => {
+  try {
+    // 1. Obtenemos el ID de la URL (params) y los nuevos datos del cuerpo (body)
+    const { id } = req.params;
+    const { horaentrada, horasalida } = req.body;
+
+    // 2. Buscamos el registro de asistencia en la Base de Datos usando su ID
+    const asistencia = await Asistencia.findById(id);
+
+    // 3. Verificamos si realmente existe
+    if (!asistencia) {
+      return res.status(404).json({ success: false, error: 'Asistencia no encontrada' });
+    }
+
+    // 4. Actualizamos sus valores (Hora de Entrada y Hora de Salida)
+    if (horaentrada) asistencia.horaentrada = horaentrada;
+    if (horasalida) asistencia.horasalida = horasalida;
+
+    // 5. RE-CÁLCULO CRÍTICO: Las Horas Totales Trabajadas
+    // Si la persona ya tiene ambas horas (entrada y salida), recalculamos los segundos:
+    if (asistencia.horaentrada && asistencia.horasalida) {
+      // Necesitamos la fecha base de la asistencia para que JS pueda restarlas.
+      const fechaCorta = asistencia.fecha.toISOString().split('T')[0]; // Ejemplo: "2026-03-04"
+
+      // Aseguramos formato HH:mm:ss verificando si la longitud de texto es de 5 caracteres
+      const entrada = asistencia.horaentrada.lenght === 5 ?
+        `${asistencia.horaentrada}:00` : asistencia.horaentrada;
+      const salida = asistencia.horasalida.lenght === 5 ?
+        `${asistencia.horasalida}:00` : asistencia.horasalida;
+
+      // Armamos los objetos Date limpios, ya sin tener que pegarles ":00" de manera ciega
+      const objEntrada = new Date(`${fechaCorta}T${entrada}`);
+      const objSalida = new Date(`${fechaCorta}T${salida}`);
+
+      // Restamos los objetos Date (esto da milisegundos)
+      let diffMs = objSalida - objEntrada;
+
+      // Un guardia de seguridad por si ponen la salida ANTES que la entrada
+      if (diffMs < 0) {
+        return res.status(400).json({ success: false, error: 'La hora de salida no puede ser anterior a la entrada.' });
+      }
+
+      // MongoDB espera "horas_trabajadas" en Segundos, así que dividimos los ms entre 1000
+      asistencia.horas_trabajadas = Math.floor(diffMs / 1000);
+    } else {
+      // Si el Admin borra la hora de salida, dejamos las horas trabajadas en 0 temporalmente
+      asistencia.horas_trabajadas = 0;
+    }
+
+    // 6. Guardamos los cambios en MongoDB
+    await asistencia.save();
+
+    console.log(`✅ [ADMIN] Horas actualizadas para asistencia ID: ${id}`);
+
+    // 7. Respondemos al Frontend que todo fue un éxito
+    res.json({ success: true, message: 'Horas actualizadas correctamente.', asistencia });
+
+  } catch (error) {
+    console.error('❌ Error en updateHoras:', error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 };
