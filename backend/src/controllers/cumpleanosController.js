@@ -5,7 +5,7 @@ exports.obtenerCumpleanos = async (req, res) => {
         // 1. Obtener todos los usuarios activos que tengan un cumpleaños registrado y popular su área
         const usuarios = await Usuario.find({
             activo: 'SI',
-            cumpleanos: { $ne: null, $ne: '' }
+            cumpleanos: { $nin: [null, ''] }
         }).select('nombre apellido correo cumpleanos areaid').populate('areaid', 'nombre');
 
         // 2. Obtener información de la fecha actual (mes y día)
@@ -23,6 +23,7 @@ exports.obtenerCumpleanos = async (req, res) => {
         // 4. Procesar y clasificar a cada usuario
         usuarios.forEach(usuario => {
             let dia, mes;
+            if (!usuario.cumpleanos) return;
 
             // Lógica para extraer dia y mes dependiendo del formato (YYYY-MM-DD o DD/MM/YYYY)
             if (usuario.cumpleanos.includes('-')) {

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cumpleaños - Sanilab</title>
+
+    <link rel="stylesheet" href="../../assets/css/home.css" />
+    <!-- Nuestro nuevo CSS para este módulo -->
+    <link rel="stylesheet" href="../../assets/css/cumpleanos.css" />
+
+    <link rel="icon" type="image/png" href="../../assets/images/Sanilab-favicon.png" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+</head>
+
+<body>
+    <!-- Barra superior (Top Bar) idéntica al Home para mantener el diseño -->
+    <div class="home-top-bar">
+        <button class="btn-secondary" onclick="location.href='/pages/home/index.html'">⟵ Volver al Inicio</button>
+    </div>
+
+    <div class="home-container" style="max-width: 900px;">
+        <!-- Hero Section para Cumpleaños de HOY -->
+        <div id="cumpleanosHero" class="cumpleanos-hero" style="display: none;">
+            <h2>🎉 ¡Hoy es el cumpleaños de... 🎉</h2>
+            <div id="cumpleanosHoyContainer" class="hero-grid">
+                <!-- Tarjetas de cumpleañeros de hoy se inyectarán aquí -->
+            </div>
+        </div>
+
+        <!-- Sección de Próximos Cumpleaños Separados por Mes -->
+        <div class="cumpleanos-meses-container">
+            <h2 class="section-title">Próximos Cumpleaños 🎂</h2>
+            <div id="mesesContainer">
+                <!-- Las secciones de los meses (Enero a Diciembre) se inyectarán aquí -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="/js/pages/cumpleanos.js"></script>
+</body>
+
+</html>
