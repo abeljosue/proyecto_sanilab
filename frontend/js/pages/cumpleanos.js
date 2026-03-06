@@ -111,7 +111,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return `
             <div class="cumpleanero-avatar">${inicial}</div>
             <div class="cumpleanero-info">
-                <span class="cumpleanero-nombre">${usuario.nombre} ${usuario.apellido}</span>
+                <div class="cumpleanero-nombre">
+                    <span class="texto-truncado" title="${usuario.nombre}">${usuario.nombre}</span>
+                    <span class="texto-truncado" title="${usuario.apellido}">${usuario.apellido}</span>
+                </div>
                 <span class="cumpleanero-area">
                     <i class="fa-solid fa-briefcase"></i> ${usuario.area}
                 </span>

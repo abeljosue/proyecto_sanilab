@@ -70,15 +70,21 @@
 /* Grilla de tarjetas de empleado */
 .cumpleanos-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 1rem;
 }
 
 /* Tarjeta principal del cumpleañero */
 .cumpleanero-card {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: var(--border-radius-md, 8px);
+    background: rgba(255, 255, 255, 0.1);
+    /* Más visible */
+    backdrop-filter: blur(12px);
+    /* Efecto vidrio difuminado */
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-left: 4px solid var(--primary-color, #3b82f6);
+    /* Acento de color lateral */
+    border-radius: var(--border-radius-md, 12px);
     padding: 1.25rem;
     display: flex;
     align-items: center;
@@ -86,26 +92,30 @@
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
 .cumpleanero-card:hover {
-    transform: translateY(-4px);
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.15);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    transform: translateY(-5px);
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+    border-left-color: #60a5fa;
+    /* Acento más claro al pasar el mouse */
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
 }
 
 /* Tarjeta destacada (Estilo específico para los de HOY) */
 .hero-card {
-    background: rgba(255, 193, 7, 0.08) !important;
-    border-color: rgba(255, 193, 7, 0.3) !important;
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.15), rgba(255, 152, 0, 0.05)) !important;
+    border: 1px solid rgba(255, 193, 7, 0.4) !important;
+    border-left: 4px solid #FFC107 !important;
     text-align: left;
 }
 
 .hero-card:hover {
-    background: rgba(255, 193, 7, 0.12) !important;
-    border-color: rgba(255, 193, 7, 0.5) !important;
-    box-shadow: 0 8px 24px rgba(255, 193, 7, 0.15) !important;
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.2), rgba(255, 152, 0, 0.1)) !important;
+    border-color: rgba(255, 193, 7, 0.6) !important;
+    box-shadow: 0 8px 24px rgba(255, 193, 7, 0.2) !important;
 }
 
 /* Avatar del usuario con la inicial */
@@ -129,18 +139,36 @@
     box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
 }
 
-/* Información de texto */
+/* Nuevo formato de contenedor de información */
 .cumpleanero-info {
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
+    gap: 0.4rem;
     flex: 1;
+    min-width: 0;
+    /* Vital para que el truncado funcione sin romper la tarjeta */
+    padding-right: 65px;
+    /* Espacio reservado para la etiqueta de la fecha */
 }
 
+/* Forzar Nombres en Columna (Máximo 2 líneas) */
 .cumpleanero-nombre {
+    display: flex;
+    flex-direction: column;
     color: var(--text-primary, #ffffff);
     font-weight: 600;
-    font-size: 1rem;
+    font-size: 0.95rem;
+    /* Tamaño más cómodo para 2 líneas */
+    line-height: 1.3;
+}
+
+/* Efecto de texto con puntos suspensivos (...) y previene línea extra */
+.texto-truncado {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
 }
 
 .cumpleanero-area {
