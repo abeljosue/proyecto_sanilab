@@ -226,6 +226,28 @@
         </div>
       </div>
 
+      <!-- MODAL DE CUMPLEAÑOS (NUEVO) -->
+      <div id="modalCumpleanosHoy" class="modal-cumpleanos hidden">
+        <div class="modal-cumpleanos__backdrop"></div>
+        <div class="modal-cumpleanos__content">
+          <div class="modal-cumpleanos__icon">🎁</div>
+          <h2>¡Feliz Cumpleaños, <span id="nombreCumpleaneroModal"></span>! 🥳</h2>
+          <p>
+            Hoy es un día muy especial en el equipo.<br>
+            <strong>¡No olvides dedicarle un saludo en el meet general!</strong>
+          </p>
+          <div class="modal-cumpleanos__actions">
+            <button class="btn-cumpleanos-close" onclick="cerrarModalCumpleanos()">
+              ¡Entendido, lo haré!
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- LIBRERÍA DE CONFETI -->
+      <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+
       <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
       <script src="../../js/pages/home.js"></script>
       <script src="../../js/pages/chatbot.js"></script>
