@@ -13,6 +13,7 @@ const fs = require('fs');
 const app = express();
 const routes = require('./src/routes');
 const adminRoutes = require('./src/routes/adminRoutes');
+const cumpleanosRoutes = require('./src/routes/cumpleanosRoutes');
 
 const projectRoot = path.dirname(__dirname);
 const frontendPath = path.join(projectRoot, 'frontend');
@@ -57,6 +58,7 @@ app.get('/', (req, res) => {
 app.use('/api', routes);
 app.use('/api/admin', adminRoutes);
 app.use('/api', chatbotRoutes);
+app.use('/api/cumpleanos', cumpleanosRoutes);
 
 app.use((err, req, res, next) => {
   console.error('ERROR GLOBAL =>', err);

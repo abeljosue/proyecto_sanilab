@@ -15,6 +15,7 @@
   color: #065f46;
   font-weight: 500;
 }
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -35,7 +36,7 @@ body::before {
   z-index: -1;
 }
 
-  .btn-secondary {
+.btn-secondary {
   padding: 8px 18px;
   border-radius: 999px;
   border: 1px solid #e5e7eb;
@@ -110,13 +111,13 @@ body::before {
 h1 {
   font-size: 2.5em;
   font-weight: 400;
-  color: #f9fafb;     
+  color: #f9fafb;
   margin-bottom: 12px;
   letter-spacing: -0.5px;
 }
 
 .subtitle {
-  color: #e5f6f0;     
+  color: #e5f6f0;
   font-size: 1.05em;
   font-weight: 400;
 }
@@ -224,13 +225,13 @@ h1 {
 .button-title {
   font-size: 1.15em;
   font-weight: 600;
-  color: #111827;   
+  color: #111827;
   margin-bottom: 4px;
 }
 
 .button-description {
   font-size: 0.9em;
-  color: #1f2933;    
+  color: #1f2933;
   font-weight: 400;
 }
 
@@ -338,16 +339,39 @@ h1 {
 }
 
 @keyframes modal-pop {
-  from { opacity: 0; transform: translateY(10px) scale(0.96); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @keyframes icon-shake {
-  0%, 100% { transform: translateX(0); }
-  20%      { transform: translateX(-2px); }
-  40%      { transform: translateX(2px); }
-  60%      { transform: translateX(-2px); }
-  80%      { transform: translateX(2px); }
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  20% {
+    transform: translateX(-2px);
+  }
+
+  40% {
+    transform: translateX(2px);
+  }
+
+  60% {
+    transform: translateX(-2px);
+  }
+
+  80% {
+    transform: translateX(2px);
+  }
 }
 
 @keyframes fadeInDown {
@@ -355,6 +379,7 @@ h1 {
     opacity: 0;
     transform: translateY(-20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -366,6 +391,7 @@ h1 {
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -376,6 +402,7 @@ h1 {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -489,7 +516,9 @@ h1 {
 }
 
 @keyframes stroke {
-  to { stroke-dashoffset: 0; }
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 
 .modal-constancia__content h2 {
@@ -622,6 +651,7 @@ h1 {
     opacity: 0;
     transform: translateY(30px) scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -629,8 +659,13 @@ h1 {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .modal-confirm {
@@ -672,6 +707,7 @@ h1 {
     opacity: 0;
     transform: scale(0.9) translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
@@ -685,8 +721,15 @@ h1 {
 }
 
 @keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
 }
 
 .modal-confirm__content h2 {
@@ -800,7 +843,7 @@ h1 {
   max-height: 420px;
   background: #ffffff;
   border-radius: 12px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
   font-size: 14px;
@@ -1122,19 +1165,174 @@ h1 {
   animation: onboardingFadeUp 0.35s ease forwards;
 }
 
-.onboarding-card:nth-child(1) { animation-delay: 0.03s; }
-.onboarding-card:nth-child(2) { animation-delay: 0.06s; }
-.onboarding-card:nth-child(3) { animation-delay: 0.09s; }
-.onboarding-card:nth-child(4) { animation-delay: 0.12s; }
-.onboarding-card:nth-child(5) { animation-delay: 0.15s; }
-.onboarding-card:nth-child(6) { animation-delay: 0.18s; }
-.onboarding-card:nth-child(7) { animation-delay: 0.21s; }
-.onboarding-card:nth-child(8) { animation-delay: 0.24s; }
-.onboarding-card:nth-child(9) { animation-delay: 0.27s; }
+.onboarding-card:nth-child(1) {
+  animation-delay: 0.03s;
+}
+
+.onboarding-card:nth-child(2) {
+  animation-delay: 0.06s;
+}
+
+.onboarding-card:nth-child(3) {
+  animation-delay: 0.09s;
+}
+
+.onboarding-card:nth-child(4) {
+  animation-delay: 0.12s;
+}
+
+.onboarding-card:nth-child(5) {
+  animation-delay: 0.15s;
+}
+
+.onboarding-card:nth-child(6) {
+  animation-delay: 0.18s;
+}
+
+.onboarding-card:nth-child(7) {
+  animation-delay: 0.21s;
+}
+
+.onboarding-card:nth-child(8) {
+  animation-delay: 0.24s;
+}
+
+.onboarding-card:nth-child(9) {
+  animation-delay: 0.27s;
+}
 
 @keyframes onboardingFadeUp {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* =========================================================
+   MODAL DE CUMPLEAÑOS (GLASSMORPHISM Y REBOTE)
+========================================================= */
+.modal-cumpleanos {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  /* Por encima de todo */
+  animation: fadeIn 0.4s ease;
+}
+
+.modal-cumpleanos.hidden {
+  display: none !important;
+}
+
+.modal-cumpleanos__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  /* Fondo semioscuro */
+  backdrop-filter: blur(8px);
+  /* Difumina lo que hay detrás */
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.modal-cumpleanos__content {
+  position: relative;
+  z-index: 1;
+  width: 90%;
+  max-width: 450px;
+  padding: 40px 30px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  /* Animación de entrada con un leve rebote */
+  animation: bounceInUp 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.modal-cumpleanos__icon {
+  font-size: 4em;
+  margin-bottom: 10px;
+  animation: floatIcon 3s ease-in-out infinite;
+  /* Sube y baja suavemente */
+}
+
+.modal-cumpleanos__content h2 {
+  font-size: 1.6em;
+  color: #1f2937;
+  margin-bottom: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.modal-cumpleanos__content h2 span {
+  color: #3b82f6;
+  /* Acentúa el nombre en azul corporativo */
+}
+
+.modal-cumpleanos__content p {
+  font-size: 1.05em;
+  color: #4b5563;
+  line-height: 1.6;
+  margin-bottom: 25px;
+}
+
+.modal-cumpleanos__content p strong {
+  color: #10b981;
+  /* Resalta en verde el recordatorio */
+  font-weight: 600;
+}
+
+.modal-cumpleanos__actions {
+  display: flex;
+  justify-content: center;
+}
+
+.btn-cumpleanos-close {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  padding: 14px 32px;
+  border: none;
+  border-radius: 12px;
+  font-size: 1em;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+  transition: all 0.3s ease;
+}
+
+.btn-cumpleanos-close:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.5);
+}
+
+/* Animaciones Clave (Keyframes) */
+@keyframes bounceInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(100px) scale(0.9);
+  }
+
+  60% {
+    opacity: 1;
+    transform: translateY(-10px) scale(1.02);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes floatIcon {
+
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+
+  50% {
+    transform: translateY(-12px) scale(1.05);
   }
 }

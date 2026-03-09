@@ -1,0 +1,237 @@
+/* Hero Section (Cumpleaños HOY) */
+.cumpleanos-hero {
+    border-radius: var(--border-radius-lg, 12px);
+    padding: 2rem;
+    margin-bottom: 2rem;
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 152, 0, 0.05) 100%);
+    border: 1px solid rgba(255, 193, 7, 0.2);
+    box-shadow: 0 8px 32px rgba(255, 152, 0, 0.05);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    animation: slideFadeIn 0.8s ease-out;
+}
+
+.cumpleanos-hero h2 {
+    color: #FFC107;
+    font-size: 1.8rem;
+    margin-bottom: 1.5rem;
+    text-shadow: 0 2px 10px rgba(255, 193, 7, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.hero-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    justify-content: center;
+}
+
+/* Grilla general de meses */
+.cumpleanos-meses-container {
+    margin-top: 2rem;
+    animation: slideFadeIn 1s ease-out;
+}
+
+.section-title {
+    color: var(--text-primary, #ffffff);
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Sección de un mes específico */
+.mes-section {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: var(--border-radius-lg, 12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.mes-title {
+    color: var(--primary-color, #3b82f6);
+    font-size: 1.25rem;
+    margin-bottom: 1.2rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 0.5rem;
+}
+
+/* Grilla de tarjetas de empleado */
+.cumpleanos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+/* Tarjeta principal del cumpleañero */
+.cumpleanero-card {
+    background: rgba(255, 255, 255, 0.1);
+    /* Más visible */
+    backdrop-filter: blur(12px);
+    /* Efecto vidrio difuminado */
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-left: 4px solid var(--primary-color, #3b82f6);
+    /* Acento de color lateral */
+    border-radius: var(--border-radius-md, 12px);
+    padding: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.cumpleanero-card:hover {
+    transform: translateY(-5px);
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+    border-left-color: #60a5fa;
+    /* Acento más claro al pasar el mouse */
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+}
+
+/* Tarjeta destacada (Estilo específico para los de HOY) */
+.hero-card {
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.15), rgba(255, 152, 0, 0.05)) !important;
+    border: 1px solid rgba(255, 193, 7, 0.4) !important;
+    border-left: 4px solid #FFC107 !important;
+    text-align: left;
+}
+
+.hero-card:hover {
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.2), rgba(255, 152, 0, 0.1)) !important;
+    border-color: rgba(255, 193, 7, 0.6) !important;
+    box-shadow: 0 8px 24px rgba(255, 193, 7, 0.2) !important;
+}
+
+/* Avatar del usuario con la inicial */
+.cumpleanero-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-color, #3b82f6), #2563eb);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 600;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.hero-card .cumpleanero-avatar {
+    background: linear-gradient(135deg, #FFC107, #FF9800);
+    box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+}
+
+/* Nuevo formato de contenedor de información */
+.cumpleanero-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    flex: 1;
+    min-width: 0;
+    /* Vital para que el truncado funcione sin romper la tarjeta */
+    padding-right: 65px;
+    /* Espacio reservado para la etiqueta de la fecha */
+}
+
+/* Forzar Nombres en Columna (Máximo 2 líneas) */
+.cumpleanero-nombre {
+    display: flex;
+    flex-direction: column;
+    color: var(--text-primary, #ffffff);
+    font-weight: 600;
+    font-size: 0.95rem;
+    /* Tamaño más cómodo para 2 líneas */
+    line-height: 1.3;
+}
+
+/* Efecto de texto con puntos suspensivos (...) y previene línea extra */
+.texto-truncado {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+}
+
+.cumpleanero-area {
+    color: var(--text-secondary, #9ca3af);
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+/* Etiqueta flotante de fecha */
+.cumpleanero-fecha {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary, #ffffff);
+    padding: 0.2rem 0.6rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    backdrop-filter: blur(4px);
+}
+
+.hero-card .cumpleanero-fecha {
+    background: rgba(255, 193, 7, 0.2);
+    color: #FFC107;
+}
+
+/* Carga y animaciones */
+.loading-meses {
+    text-align: center;
+    color: var(--text-secondary, #9ca3af);
+    padding: 2rem;
+    width: 100%;
+}
+
+@keyframes slideFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (max-width: 600px) {
+    .cumpleanos-hero {
+        padding: 1.5rem 1rem;
+    }
+
+    .cumpleanos-hero h2 {
+        font-size: 1.4rem;
+    }
+
+    .cumpleanos-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .hero-grid {
+        grid-template-columns: 1fr;
+    }
+}

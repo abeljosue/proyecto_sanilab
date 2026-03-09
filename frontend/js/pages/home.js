@@ -4,8 +4,85 @@ if (!localStorage.getItem('token')) {
 
 function getTodayKey(prefix) {
   const usuarioid = localStorage.getItem('usuarioid') || 'anon';
-  const hoy = new Date().toISOString().slice(0, 10); 
+  const hoy = new Date().toISOString().slice(0, 10);
   return `${prefix}_${usuarioid}_${hoy}`;
+}
+function lanzarCañonesConfeti() {
+  if (typeof confetti !== 'function') return; // Seguridad si falla el CDN
+
+  var duration = 4000;
+  var end = Date.now() + duration;
+
+  (function frame() {
+    // Cañón izquierdo
+    confetti({
+      particleCount: 5,
+      angle: 60,
+      spread: 55,
+      origin: { x: 0 },
+      colors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
+    });
+    // Cañón derecho
+    confetti({
+      particleCount: 5,
+      angle: 120,
+      spread: 55,
+      origin: { x: 1 },
+      colors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
+    });
+
+    if (Date.now() < end) {
+      requestAnimationFrame(frame);
+    }
+  }());
+}
+async function verificarCumpleanosDelDia() {
+  const token = localStorage.getItem('token');
+  if (!token) return;
+
+  try {
+    const res = await fetch('/api/cumpleanos', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) return;
+
+    const data = await res.json();
+
+    // Si hay cumpleañeros HOY
+    if (data.success && data.hoy && data.hoy.length > 0) {
+      // 1. Tomamos al primer cumpleañero (o si hubieran varios, extraemos los nombres)
+      const cumpleaneros = data.hoy.map(u => u.nombre).join(' y ');
+
+      // 2. Control de sesión: Verificar si el usuario actual ya vio el modal HOY
+      // Creamos una clave única: "cumplevisto_IDUSUARIO_FECHAHOY"
+      const claveStorageVisto = getTodayKey('cumple_hoy_visto');
+      const yaLoVio = localStorage.getItem(claveStorageVisto) === '1';
+
+      if (!yaLoVio) {
+        // Enchufar el nombre(s) en el modal
+        const spanNombre = document.getElementById('nombreCumpleaneroModal');
+        if (spanNombre) spanNombre.textContent = cumpleaneros;
+
+        // Quitar la clase hidden al modal (Animación In)
+        const modal = document.getElementById('modalCumpleanosHoy');
+        if (modal) modal.classList.remove('hidden');
+
+        // Lanzamos la celebración
+        lanzarCañonesConfeti();
+
+        // Registramos que ya lo vio HOY para no molestar si recarga
+        localStorage.setItem(claveStorageVisto, '1');
+      }
+    }
+  } catch (err) {
+    console.error('Error al verificar cumpleaños del día en el modal:', err);
+  }
+}
+
+// Función global que cerrará el Modal al dar click al botón de "¡Entendido!"
+window.cerrarModalCumpleanos = function () {
+  const modal = document.getElementById('modalCumpleanosHoy');
+  if (modal) modal.classList.add('hidden');
 }
 
 async function configurarBotonResultados() {
@@ -39,8 +116,8 @@ async function configurarBotonResultados() {
 
 function marcarProgresoHome() {
   const asistenciaDone = localStorage.getItem(getTodayKey('asis_completa')) === '1';
-  const autoevalDone   = localStorage.getItem(getTodayKey('auto_completa')) === '1';
-  const rankingVisto   = localStorage.getItem(getTodayKey('rank_visto')) === '1';
+  const autoevalDone = localStorage.getItem(getTodayKey('auto_completa')) === '1';
+  const rankingVisto = localStorage.getItem(getTodayKey('rank_visto')) === '1';
 
   const cardAsis = document.getElementById('cardAsistencia');
   const cardAuto = document.getElementById('cardAutoevaluacion');
@@ -59,10 +136,10 @@ function marcarProgresoHome() {
 
 function initHome() {
   const btnLogout = document.getElementById('btnLogout');
-  const btnAdmin  = document.getElementById('btnAdmin');
+  const btnAdmin = document.getElementById('btnAdmin');
   const btnPerfil = document.getElementById('btnPerfil'); // 👈 NUEVO
-  const modal     = document.getElementById('no-access-modal');
-  const closeBtn  = document.getElementById('closeNoAccess');
+  const modal = document.getElementById('no-access-modal');
+  const closeBtn = document.getElementById('closeNoAccess');
 
   const userStr = localStorage.getItem('usuario');
   if (userStr) {
@@ -116,6 +193,7 @@ function initHome() {
   marcarProgresoHome();
   verificarConstancia520();
   verificarEvaluacionCompaneros();
+  verificarCumpleanosDelDia();
 }
 
 async function verificarConstancia520() {
@@ -134,7 +212,7 @@ async function verificarConstancia520() {
 
     if (data.elegible && !data.yaReclamo && cardConstancia) {
       cardConstancia.style.display = 'flex';
-      
+
       const desc = cardConstancia.querySelector('.button-description');
       if (desc) {
         desc.textContent = `Tienes ${data.horasTotales}h acumuladas`;
@@ -161,7 +239,7 @@ async function verificarEvaluacionCompaneros() {
 
     if (data.puedeEvaluar && cardEvalComp) {
       cardEvalComp.style.display = 'flex';
-      
+
       const desc = cardEvalComp.querySelector('.button-description');
       if (desc && !data.puedeEvaluar) {
         desc.textContent = `Disponible en ${data.diasRestantes} día(s)`;
@@ -182,13 +260,13 @@ function cerrarConfirmacion() {
 
 async function confirmarSolicitudConstancia() {
   const token = localStorage.getItem('token');
-  
+
   cerrarConfirmacion();
 
   try {
     const res = await fetch('/api/constancias/solicitar', {
       method: 'POST',
-      headers: { 
+      headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
