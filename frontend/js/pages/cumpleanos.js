@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 3. Función asíncrona para consumir la API y renderizar
     async function cargarCumpleanos() {
         try {
-            const response = await axios.get('http://localhost:3000/api/cumpleanos', {
+            const response = await axios.get('/api/cumpleanos', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
