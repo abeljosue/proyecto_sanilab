@@ -1,6 +1,36 @@
 if (!localStorage.getItem('token')) {
   window.location.href = '/pages/auth/registro.html';
 }
+// --- ESCUDO AUTO-LOGOUT ---
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      console.warn('⚠️ Token expirado o sesión inválida. Cerrando sesión automáticamente...');
+      localStorage.clear(); // Destruimos los datos locales
+      window.location.href = '/index.html';
+    }
+    return Promise.reject(error);
+  }
+);
+// --- FIN DEL ESCUDO ---
+
+// --- VERIFICADOR ACTIVO (AUTO-LOGOUT SIN CLIC) ---
+function verificarExpiracion() {
+  const token = localStorage.getItem('token');
+  if (!token) return;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const expDate = payload.exp * 1000; // a milisegundos
+    if (Date.now() >= expDate) {
+      console.warn('⏱️ Tiempo de sesión agotado. Redirigiendo...');
+      localStorage.clear();
+      window.location.href = '/index.html';
+    }
+  } catch (err) { }
+}
+setInterval(verificarExpiracion, 10000); // Revisa silenciosamente cada 10 segundos
+// -------------------------------------------------
 
 function getTodayKey(prefix) {
   const usuarioid = localStorage.getItem('usuarioid') || 'anon';
