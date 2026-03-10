@@ -150,13 +150,10 @@ exports.marcarSalida = async (req, res) => {
       return res.status(400).json({ error: 'Falta horaLocal en la petición' });
     }
 
-    const hoy = new Date();
-    const fechaHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
-
     const asistencia = await Asistencia.findOne({
       usuarioid: usuarioid,
-      fecha: fechaHoy
-    });
+      estado: { $ne: 'Jornada terminada' }
+    }).sort({ fecha: -1 });
 
     if (!asistencia) {
       return res.status(404).json({ error: 'No hay asistencia registrada hoy para cerrar.' });
