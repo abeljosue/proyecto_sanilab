@@ -10,7 +10,7 @@ router.get('/', async (req, res) => {
 
   try {
     // Migrado a Mongoose: Buscar preguntas por área y activa=true
-    const preguntas = await Pregunta.find({ areaid: areaid, activa: true }).sort('orden');
+    const preguntas = await Pregunta.find({ activa: true }).sort('orden');
     res.json(preguntas);
   } catch (err) {
     console.error('Error en preguntas Mongoose:', err);

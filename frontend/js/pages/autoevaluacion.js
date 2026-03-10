@@ -11,7 +11,7 @@ function getTodayKey(prefix) {
   return `${prefix}_${usuarioid}_${hoy}`;
 }
 
-window.onload = async function() {
+window.onload = async function () {
   const areaid = localStorage.getItem('areaid');
   const token = localStorage.getItem('token');
 
@@ -22,6 +22,7 @@ window.onload = async function() {
     });
 
     const preguntas = preguntasRes.data;
+    preguntas.forEach(p => { if (!p.id) p.id = p._id; });
     preguntasGlobales = preguntas;
 
     // Detectar pregunta de puntualidad
@@ -45,7 +46,7 @@ window.onload = async function() {
 
   const btnVolver = document.getElementById('btnVolver');
   if (btnVolver) {
-    btnVolver.onclick = function(e) {
+    btnVolver.onclick = function (e) {
       e.preventDefault();
       window.location.href = "/pages/home/index.html";
     };
@@ -54,7 +55,7 @@ window.onload = async function() {
 
 function renderPagina(pagina) {
   paginaActual = pagina;
-  
+
   const inicio = (pagina - 1) * PREGUNTAS_POR_PAGINA;
   const fin = inicio + PREGUNTAS_POR_PAGINA;
   const preguntasPagina = preguntasGlobales.slice(inicio, fin);
@@ -126,7 +127,7 @@ function renderPreguntas(preguntas, offsetIndex) {
     videoContainer.className = 'video-motivador';
     videoContainer.id = `video-${pregunta.id}`;
     videoContainer.style.display = Number(inputRange.value) < 3 ? 'block' : 'none';
-    
+
     const videoLink = getVideoMotivador(pregunta.pregunta);
     if (videoLink) {
       videoContainer.innerHTML = `
@@ -173,7 +174,7 @@ function renderPreguntas(preguntas, offsetIndex) {
 
 function actualizarBotonesNavegacion() {
   const totalPaginas = Math.ceil(preguntasGlobales.length / PREGUNTAS_POR_PAGINA);
-  
+
   const btnAnterior = document.getElementById('btnAnterior');
   const btnSiguiente = document.getElementById('btnSiguiente');
   const btnEnviar = document.getElementById('enviarRespuestas');
@@ -258,8 +259,8 @@ function showSuccessModal(msg, score, mensajeMotivacional) {
 
   const btnAceptar = document.getElementById('btnAceptarModal');
   if (btnAceptar) {
-    btnAceptar.onclick = function() {
-    document.getElementById('successModal').style.display = 'none';
+    btnAceptar.onclick = function () {
+      document.getElementById('successModal').style.display = 'none';
       mostrarBotonRanking();
     };
   }
@@ -267,17 +268,17 @@ function showSuccessModal(msg, score, mensajeMotivacional) {
 
 function mostrarBotonRanking() {
   const actionsDiv = document.querySelector('.actions');
-  
+
   if (document.getElementById('btnRanking')) return;
-  
+
   const btnRanking = document.createElement('button');
   btnRanking.id = 'btnRanking';
   btnRanking.className = 'btn btn-success';
   btnRanking.innerHTML = '<span>Ver Ranking</span><span class="arrow">🏆</span>';
-  btnRanking.onclick = function() {
+  btnRanking.onclick = function () {
     window.location.href = '/pages/ranking/ranking.html';
   };
-  
+
   actionsDiv.appendChild(btnRanking);
 }
 
@@ -295,7 +296,7 @@ function getVideoMotivador(pregunta) {
     '¿Mantiene actualizada su lista de actividades y pendientes?': 'https://www.instagram.com/reel/C_BH8W3spws/?igsh=dTNhcTZ2cTBwa29w',
     '¿Revisa Notion con frecuencia para dar seguimiento a pendientes y plazos?': 'https://vt.tiktok.com/ZSaAdsFb4/'
   };
-  
+
   return videos[pregunta] || null;
 }
 
@@ -338,7 +339,7 @@ async function enviarRespuestas() {
   for (let preguntaid in respuestas) {
     const valor = Number(respuestas[preguntaid]);
     respuestasArray.push({
-      preguntaid: parseInt(preguntaid),
+      preguntaid: preguntaid,
       respuesta: null,
       puntaje: valor
     });
@@ -351,8 +352,8 @@ async function enviarRespuestas() {
 
   try {
     const res = await axios.post(`${API_BASE_URL}/api/autoevaluaciones`, {
-      usuarioid: parseInt(usuarioid),
-      areaid: parseInt(areaid),
+      usuarioid: usuarioid,
+      areaid: areaid,
       puntajetotal: puntajetotal,
       quincena: quincena,
       mensajemotivacional: mensajeMotivacional,
