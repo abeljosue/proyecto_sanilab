@@ -66,7 +66,8 @@ exports.getHoras = async (req, res) => {
         fecha: a.fecha.toISOString().split('T')[0],
         horaentrada: a.horaentrada,
         horasalida: a.horasalida,
-        horatotal: horatotal
+        horatotal: horatotal,
+        cierre_automatico: a.cierre_automatico || false
       };
     });
 

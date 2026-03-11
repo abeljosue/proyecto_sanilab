@@ -1,3 +1,29 @@
+// --- ESCUDO AUTO-LOGOUT GLOBAL ---
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      console.warn('⚠️ Token expirado o sesión inválida. Cerrando sesión automáticamente...');
+      localStorage.clear();
+      window.location.href = '/index.html';
+    }
+    return Promise.reject(error);
+  }
+);
+
+// --- VERIFICADOR ACTIVO CADA 10 SEGUNDOS ---
+setInterval(() => {
+  const token = localStorage.getItem('token');
+  if (!token) return;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    if (Date.now() >= payload.exp * 1000) {
+      localStorage.clear();
+      window.location.href = '/index.html';
+    }
+  } catch (err) { }
+}, 10000);
+
 document.addEventListener('DOMContentLoaded', function () {
   const token = localStorage.getItem('token');
   if (!token) {
@@ -63,14 +89,21 @@ async function cargarHoras() {
       const fecha = formatearFechaISO(row.fecha);
       const colorEstado = row.estado === 'Completado' ? '#4caf50' : '#ff9800';
 
+      // LÓGICA DE RESALTADO AUTOMÁTICO
+      const isAuto = row.cierre_automatico;
+      // Tr será naranja transparente intenso de fondo
+      const resalteBg = isAuto ? 'background-color: rgba(255, 152, 0, 0.2); border-left: 4px solid #e65100;' : '';
+      // Insignia alerta roja / naranja para que impacte visualmente
+      const alarmaSalida = isAuto ? ` <span style="background:#e65100; color:white; font-size:10px; padding:2px 4px; border-radius:3px; margin-left:3px; font-weight:bold;">⚠️ Auto</span>` : '';
+
       tbody.innerHTML += `
-        <tr>
+        <tr style="${resalteBg}">
           <td><strong>${row.nombre}</strong></td>
           <td>${row.area}</td>
           <td style="color:${colorEstado};font-weight: bold;">${row.estado}</td>
           <td>${fecha}</td>
           <td>${horaEntrada}</td>
-          <td>${horaSalida}</td>
+          <td style="${isAuto ? 'color:#e65100; font-weight:bold;' : ''}">${horaSalida}${alarmaSalida}</td>
           <td><strong>${totalHoras}</strong></td>
           <td>
             <button class="btn-editar" style="cursor:pointer; padding:5px 10px; background:#ff9800; color:white; border:none; border-radius:4px;" 
@@ -80,6 +113,7 @@ async function cargarHoras() {
           </td>
         </tr>
       `;
+
     });
   } catch (error) {
     console.error('Error cargarHoras:', error);
