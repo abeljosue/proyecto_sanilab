@@ -266,29 +266,27 @@ exports.iniciarAutoCierre = () => {
   // Ejecutar cada 30 minutos (1,800,000 milisegundos)
   setInterval(async () => {
     try {
-      const hoy = new Date();
-      const fechaHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+      const ahora = new Date();
 
+      // 1. Buscar TODAS las asistencias abiertas (soluciona el bug de los trasnochadores)
       const asistenciasAbiertas = await Asistencia.find({
-        fecha: fechaHoy,
         estado: { $nin: ['Jornada terminada', 'Ausente', 'Licencia'] },
         horaentrada: { $ne: null }
       });
 
       for (const asistencia of asistenciasAbiertas) {
-        const startSeconds = timeToSeconds(asistencia.horaentrada);
-        const nowLocal = hoy.toLocaleTimeString('es-ES', { hour12: false });
-        const nowSeconds = timeToSeconds(nowLocal);
+        // Asegurarnos de que tenga su marca de tiempo absoluto (lo pone Mongo automáticamente)
+        if (!asistencia.fecha_creacion) continue;
 
-        let diffSeconds = nowSeconds - startSeconds;
-        // Compensación si cruzó la medianoche 
-        if (diffSeconds < 0) diffSeconds += 86400;
+        // 2. ¿Cuánto ha pasado exactamente desde que hizo clic en Entrar? (Tiempo en milisegundos)
+        const tiempoTranscurridoMs = ahora.getTime() - asistencia.fecha_creacion.getTime();
 
-        // Si pasó más del límite de HORAS_MAXIMAS
-        if (diffSeconds >= (HORAS_MAXIMAS * 3600)) {
-          console.log(`⏱️ Auto-cerrando jornada del usuario ${asistencia.usuarioid} (excedió ${HORAS_MAXIMAS}h)`);
+        // 3. ¿Ese tiempo supera nuestras HORAS_MAXIMAS convertidas a milisegundos?
+        if (tiempoTranscurridoMs >= (HORAS_MAXIMAS * 3600 * 1000)) {
+          console.log(`⏱️ Auto-cerrando jornada (Tiempo absoluto expirado: ${HORAS_MAXIMAS}h) -> Usuario ID: ${asistencia.usuarioid}`);
 
-          // Calcular la "hora de salida ideal" sumando las HORAS_MAXIMAS a la entrada
+          // Generar la "hora de salida ideal" en texto (Ej: Si entró 08:00, sumarle las 10h)
+          const startSeconds = timeToSeconds(asistencia.horaentrada);
           const salidaIdealSeconds = startSeconds + (HORAS_MAXIMAS * 3600);
 
           const h = Math.floor((salidaIdealSeconds % 86400) / 3600);
@@ -302,6 +300,7 @@ exports.iniciarAutoCierre = () => {
             tramoAbierto.horasalida = horaSalidaGenerada;
           }
 
+          // Inyectar datos de auto-cierre
           asistencia.horasalida = horaSalidaGenerada;
           asistencia.horas_trabajadas = HORAS_MAXIMAS * 3600;
           asistencia.estado = 'Jornada terminada';
@@ -313,6 +312,7 @@ exports.iniciarAutoCierre = () => {
     } catch (error) {
       console.error('Error en iniciarAutoCierre:', error);
     }
+
   }, 1800000); // 1,800,000 ms = 30 min
 };
 
