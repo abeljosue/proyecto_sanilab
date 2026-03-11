@@ -66,6 +66,10 @@ app.use((err, req, res, next) => {
     error: err.message || 'Error interno del servidor'
   });
 });
+const asistenciaController = require('./src/controllers/asistenciaController');
+asistenciaController.iniciarAutoCierre();
+console.log('⏱️ Auto-Cierre de jornadas iniciado...');
+
 
 const PORT = process.env.PORT || 3000;
 

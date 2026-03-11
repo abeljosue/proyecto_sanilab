@@ -81,7 +81,19 @@ async function cargarEstado() {
   const token = obtenerToken();
   if (!token) return;
 
+  // Validación dura inmediata: Si está vencido, no cargar NADA.
   try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const expDate = payload.exp * 1000;
+    if (Date.now() >= expDate) {
+      localStorage.clear();
+      window.location.href = '/index.html';
+      return;
+    }
+  } catch (err) { }
+
+  try {
+
     const res = await axios.get('/api/asistencias/estado-actual', {
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -232,10 +244,24 @@ async function marcarSalida(tipo) {
     }).then(async (result) => {
       // Solo si el usuario hace clic afirmativo afirmativo:
       if (result.isConfirmed) {
+        // ANTI DOBLE CLIC: Mostrar cargando y bloquear pantalla temporalmente
+        Swal.fire({
+          title: 'Registrando salida...',
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading()
+          }
+        });
+
         await enviarAccion('/api/asistencias/salida', { tipo }, 'Jornada finalizada exitosamente');
+
+        // El sweetalert de carga se cerrará automáticamente al llegar el nuevo toast desde enviarAccion
+        Swal.close();
       }
     });
   } else {
+
+
     // Si solo es una pausa ('pausa'), lo dejamos pasar directo sin molestar
     await enviarAccion('/api/asistencias/salida', { tipo }, 'Pausa registrada');
   }
@@ -261,13 +287,19 @@ async function enviarAccion(endpoint, extraData, successMsg) {
     // Actualizar estado inmediatamente con la respuesta
     // El backend debería devolver el nuevo estado y totales, o podemos recargar
     // Si el backend devuelve data actualizada, la usamos:
+
+
+    // Si el backend nos mandó el mensaje de contingencia, actualizar forzadamente visual.
+    if (res.data.estado === 'Jornada terminada') {
+      updateUI({ estado: 'Jornada terminada' });
+    }
+
     if (res.data.estado) {
-      // Idealmente cargarEstado() trae todo completo (tramos, etc.)
-      // Hacemos cargarEstado para asegurar sincronía total
       setTimeout(cargarEstado, 500);
     } else {
       setTimeout(cargarEstado, 500);
     }
+
 
   } catch (error) {
     console.error('Error accion:', error);

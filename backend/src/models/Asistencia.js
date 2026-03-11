@@ -28,6 +28,8 @@ const asistenciaSchema = new mongoose.Schema({
     enum: ['En jornada', 'En Pausa', 'Jornada terminada', 'Ausente', 'Licencia'],
     default: 'En jornada'
   },
+  cierre_automatico: { type: Boolean, default: false },
+
   tramos: [tramoSchema] // Array de tramos incrustado
 }, {
   timestamps: { createdAt: 'fecha_creacion', updatedAt: 'fecha_actualizacion' }

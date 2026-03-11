@@ -9,7 +9,7 @@ const verifyToken = (req, res, next) => {
   const [scheme, token] = authHeader.split(' ');
 
   if (scheme !== 'Bearer' || !token) {
-    return res.status(403).json({ error: 'Token inválido o expirado' });
+    return res.status(401).json({ error: 'Token inválido o expirado' });
   }
 
   try {
@@ -20,7 +20,7 @@ const verifyToken = (req, res, next) => {
     next();
   } catch (err) {
     console.error('JWT error =>', err.message);
-    return res.status(403).json({ error: 'Token inválido o expirado' });
+    return res.status(401).json({ error: 'Token inválido o expirado' });
   }
 };
 

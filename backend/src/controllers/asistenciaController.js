@@ -150,14 +150,25 @@ exports.marcarSalida = async (req, res) => {
       return res.status(400).json({ error: 'Falta horaLocal en la petición' });
     }
 
+    const hoy = new Date();
+    const fechaHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+
     const asistencia = await Asistencia.findOne({
       usuarioid: usuarioid,
-      estado: { $ne: 'Jornada terminada' }
-    }).sort({ fecha: -1 });
+      fecha: fechaHoy
+    });
 
     if (!asistencia) {
       return res.status(404).json({ error: 'No hay asistencia registrada hoy para cerrar.' });
     }
+
+    if (asistencia.estado === 'Jornada terminada') {
+      return res.json({
+        message: 'Tu jornada de hoy ya ha sido terminada.',
+        estado: 'Jornada terminada'
+      });
+    }
+
 
     // Buscar tramo abierto
     const tramoIndex = asistencia.tramos.findIndex(t => !t.horasalida);
@@ -245,3 +256,63 @@ exports.obtenerEstadoActual = async (req, res) => {
     res.status(500).json({ error: 'Error interno al obtener estado' });
   }
 };
+// ==========================================
+// MOTOR DE AUTO-CIERRE: CRON JOB SIMULADO
+// ==========================================
+exports.iniciarAutoCierre = () => {
+  // ⏱️ AJUSTA ESTA VARIABLE PARA CAMBIAR EL LÍMITE (ej. 10.5 para diez horas y media)
+  const HORAS_MAXIMAS = 10;
+
+  // Ejecutar cada 30 minutos (1,800,000 milisegundos)
+  setInterval(async () => {
+    try {
+      const hoy = new Date();
+      const fechaHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+
+      const asistenciasAbiertas = await Asistencia.find({
+        fecha: fechaHoy,
+        estado: { $nin: ['Jornada terminada', 'Ausente', 'Licencia'] },
+        horaentrada: { $ne: null }
+      });
+
+      for (const asistencia of asistenciasAbiertas) {
+        const startSeconds = timeToSeconds(asistencia.horaentrada);
+        const nowLocal = hoy.toLocaleTimeString('es-ES', { hour12: false });
+        const nowSeconds = timeToSeconds(nowLocal);
+
+        let diffSeconds = nowSeconds - startSeconds;
+        // Compensación si cruzó la medianoche 
+        if (diffSeconds < 0) diffSeconds += 86400;
+
+        // Si pasó más del límite de HORAS_MAXIMAS
+        if (diffSeconds >= (HORAS_MAXIMAS * 3600)) {
+          console.log(`⏱️ Auto-cerrando jornada del usuario ${asistencia.usuarioid} (excedió ${HORAS_MAXIMAS}h)`);
+
+          // Calcular la "hora de salida ideal" sumando las HORAS_MAXIMAS a la entrada
+          const salidaIdealSeconds = startSeconds + (HORAS_MAXIMAS * 3600);
+
+          const h = Math.floor((salidaIdealSeconds % 86400) / 3600);
+          const m = Math.floor((salidaIdealSeconds % 3600) / 60);
+          const s = Math.floor(salidaIdealSeconds % 60);
+          const horaSalidaGenerada = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+          // Cerrar posible tramo en curso
+          const tramoAbierto = asistencia.tramos.find(t => !t.horasalida);
+          if (tramoAbierto) {
+            tramoAbierto.horasalida = horaSalidaGenerada;
+          }
+
+          asistencia.horasalida = horaSalidaGenerada;
+          asistencia.horas_trabajadas = HORAS_MAXIMAS * 3600;
+          asistencia.estado = 'Jornada terminada';
+          asistencia.cierre_automatico = true; // 🚩 BANDERA PARA EL PANEL ADMIN
+
+          await asistencia.save();
+        }
+      }
+    } catch (error) {
+      console.error('Error en iniciarAutoCierre:', error);
+    }
+  }, 1800000); // 1,800,000 ms = 30 min
+};
+
