@@ -144,31 +144,22 @@ exports.marcarEntrada = async (req, res) => {
 exports.marcarSalida = async (req, res) => {
   try {
     const usuarioid = req.user.id;
-    const { horaLocal, tipo } = req.body; // tipo: 'pausa' o 'fin' (default 'fin')
+    const { horaLocal, tipo } = req.body;
 
     if (!horaLocal) {
       return res.status(400).json({ error: 'Falta horaLocal en la petición' });
     }
 
-    const hoy = new Date();
-    const fechaHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
-
+    // 🌙 BUSCAR JORNADA ABIERTA (sin importar el día) - Soluciona turnos nocturnos
     const asistencia = await Asistencia.findOne({
       usuarioid: usuarioid,
-      fecha: fechaHoy
-    });
+      estado: { $nin: ['Jornada terminada', 'Ausente', 'Licencia'] },
+      horaentrada: { $ne: null }
+    }).sort({ fecha: -1 });
 
     if (!asistencia) {
-      return res.status(404).json({ error: 'No hay asistencia registrada hoy para cerrar.' });
+      return res.status(404).json({ error: 'No hay jornada abierta para cerrar.' });
     }
-
-    if (asistencia.estado === 'Jornada terminada') {
-      return res.json({
-        message: 'Tu jornada de hoy ya ha sido terminada.',
-        estado: 'Jornada terminada'
-      });
-    }
-
 
     // Buscar tramo abierto
     const tramoIndex = asistencia.tramos.findIndex(t => !t.horasalida);
@@ -180,7 +171,7 @@ exports.marcarSalida = async (req, res) => {
     // Cerrar tramo
     asistencia.tramos[tramoIndex].horasalida = horaLocal;
 
-    // Actualizar última salida general referencia
+    // Actualizar última salida general
     asistencia.horasalida = horaLocal;
 
     // Calcular total trabajada sumando todos los tramos cerrados
@@ -188,10 +179,10 @@ exports.marcarSalida = async (req, res) => {
     asistencia.tramos.forEach(t => {
       if (t.horaentrada && t.horasalida) {
         const start = timeToSeconds(t.horaentrada);
-        const end = timeToSeconds(t.horasalida);
-        if (end > start) {
-          segundosTotales += (end - start);
-        }
+        let end = timeToSeconds(t.horasalida);
+        // 🌙 Si la salida es menor que la entrada, cruzó medianoche
+        if (end < start) end += 86400; // Sumar 24 horas en segundos
+        segundosTotales += (end - start);
       }
     });
 
@@ -218,16 +209,27 @@ exports.marcarSalida = async (req, res) => {
   }
 };
 
+
 exports.obtenerEstadoActual = async (req, res) => {
   try {
     const usuarioid = req.user.id;
     const hoy = new Date();
     const fechaHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
 
-    const asistencia = await Asistencia.findOne({
+    // 1. Buscar jornada de HOY
+    let asistencia = await Asistencia.findOne({
       usuarioid,
       fecha: fechaHoy
     });
+
+    // 2. 🌙 Si no hay de hoy, buscar JORNADA ABIERTA de días anteriores (turno nocturno)
+    if (!asistencia) {
+      asistencia = await Asistencia.findOne({
+        usuarioid,
+        estado: { $nin: ['Jornada terminada', 'Ausente', 'Licencia'] },
+        horaentrada: { $ne: null }
+      }).sort({ fecha: -1 });
+    }
 
     if (!asistencia) {
       return res.json({
@@ -247,7 +249,7 @@ exports.obtenerEstadoActual = async (req, res) => {
       estado: asistencia.estado,
       horaentrada: asistencia.horaentrada,
       horasalida: asistencia.horasalida,
-      horatotal: horatotal, // HH:MM:SS
+      horatotal: horatotal,
       tramos: asistencia.tramos
     });
 
@@ -256,6 +258,7 @@ exports.obtenerEstadoActual = async (req, res) => {
     res.status(500).json({ error: 'Error interno al obtener estado' });
   }
 };
+
 // ==========================================
 // MOTOR DE AUTO-CIERRE: CRON JOB SIMULADO
 // ==========================================
@@ -269,10 +272,16 @@ exports.iniciarAutoCierre = () => {
       const ahora = new Date();
 
       // 1. Buscar TODAS las asistencias abiertas (soluciona el bug de los trasnochadores)
+      // 🛡️ Solo auto-cerrar jornadas que NO tengan hora de salida (evita pisar ediciones del admin)
       const asistenciasAbiertas = await Asistencia.find({
         estado: { $nin: ['Jornada terminada', 'Ausente', 'Licencia'] },
-        horaentrada: { $ne: null }
+        horaentrada: { $ne: null },
+        $or: [
+          { horasalida: null },
+          { horasalida: { $exists: false } }
+        ]
       });
+
 
       for (const asistencia of asistenciasAbiertas) {
         // Asegurarnos de que tenga su marca de tiempo absoluto (lo pone Mongo automáticamente)
