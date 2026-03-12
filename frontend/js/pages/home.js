@@ -144,9 +144,8 @@ async function configurarBotonResultados() {
   }
 }
 
-function marcarProgresoHome() {
+async function marcarProgresoHome() {
   const asistenciaDone = localStorage.getItem(getTodayKey('asis_completa')) === '1';
-  const autoevalDone = localStorage.getItem(getTodayKey('auto_completa')) === '1';
   const rankingVisto = localStorage.getItem(getTodayKey('rank_visto')) === '1';
 
   const cardAsis = document.getElementById('cardAsistencia');
@@ -156,13 +155,61 @@ function marcarProgresoHome() {
   if (asistenciaDone && cardAsis) {
     cardAsis.classList.add('nav-button--completed');
   }
-  if (autoevalDone && cardAuto) {
-    cardAuto.classList.add('nav-button--completed');
-  }
   if (rankingVisto && cardRank) {
     cardRank.classList.add('nav-button--completed');
   }
+
+  // ============ VERIFICACIÓN DE AUTOEVALUACIÓN ============
+  if (cardAuto) {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await axios.get('/api/autoevaluaciones/estado', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const estado = res.data;
+
+      if (estado.permitido) {
+        // ✅ Día permitido y NO ha completado: dejar pasar al módulo
+        cardAuto.onclick = function () {
+          window.location.href = '/pages/autoevaluacion/index.html';
+        };
+      } else {
+        // 🔒 Bloqueado: marcar visualmente como completado/bloqueado
+        cardAuto.classList.add('nav-button--completed');
+
+        // Cambiar la descripción del botón
+        const desc = cardAuto.querySelector('.button-description');
+        if (desc) {
+          desc.textContent = `Próxima: ${estado.proximoDia} ${estado.proximaFecha}`;
+        }
+
+        // Al hacer clic, mostrar modal de aviso
+        cardAuto.onclick = function (e) {
+          e.preventDefault();
+          Swal.fire({
+            icon: 'info',
+            title: '📋 Autoevaluación',
+            html: `
+              <p style="font-size:16px;">${estado.razon}</p>
+              <hr style="margin:15px 0;">
+              <p style="font-size:14px; color:#888;">📅 Próxima fecha: <strong style="color:#e65100;">${estado.proximoDia} (${estado.proximaFecha})</strong></p>
+            `,
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#4CAF50'
+          });
+        };
+      }
+    } catch (err) {
+      console.error('Error verificando estado autoevaluacion:', err);
+      // Si falla, dejar navegar normal
+      cardAuto.onclick = function () {
+        window.location.href = '/pages/autoevaluacion/index.html';
+      };
+    }
+  }
+  // ============ FIN VERIFICACIÓN ============
 }
+
 
 function initHome() {
   const btnLogout = document.getElementById('btnLogout');
