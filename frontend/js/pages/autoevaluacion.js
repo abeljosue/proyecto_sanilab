@@ -14,6 +14,38 @@ function getTodayKey(prefix) {
 window.onload = async function () {
   const areaid = localStorage.getItem('areaid');
   const token = localStorage.getItem('token');
+  const usuarioid = localStorage.getItem('usuarioid');
+
+  // ============ VERIFICACIÓN DE ACCESO ============
+  try {
+    const estadoRes = await axios.get(`${API_BASE_URL}/api/autoevaluaciones/estado`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    const estado = estadoRes.data;
+
+    if (!estado.permitido) {
+      await Swal.fire({
+        icon: 'warning',
+        title: '🔒 Módulo Bloqueado',
+        html: `
+          <p style="font-size:16px;">${estado.razon}</p>
+          <hr style="margin:15px 0;">
+          <p style="font-size:14px; color:#888;">📅 Tu próxima autoevaluación es el <strong style="color:#e65100;">${estado.proximoDia} (${estado.proximaFecha})</strong></p>
+        `,
+        confirmButtonText: 'Entendido, volver al inicio',
+        confirmButtonColor: '#4CAF50',
+        allowOutsideClick: false,
+        allowEscapeKey: false
+      });
+      window.location.href = '/pages/home/index.html';
+      return; // No cargar nada más
+    }
+  } catch (error) {
+    console.error('Error verificando estado de autoevaluación:', error);
+    // Si falla la verificación, dejamos pasar (fail-open) para no bloquear en caso de error de red
+  }
+  // ============ FIN VERIFICACIÓN ============
 
   try {
     const preguntasRes = await axios.get(`${API_BASE_URL}/api/preguntas`, {
@@ -39,6 +71,7 @@ window.onload = async function () {
     console.error('Error al cargar preguntas:', error);
     alert('Error al cargar las preguntas. Por favor, intenta nuevamente.');
   }
+
 
   document.getElementById('enviarRespuestas').onclick = enviarRespuestas;
   document.getElementById('btnSiguiente').onclick = irAPaginaSiguiente;
@@ -314,7 +347,10 @@ async function enviarRespuestas() {
   const usuarioid = localStorage.getItem('usuarioid');
   const areaid = localStorage.getItem('areaid');
   const token = localStorage.getItem('token');
-  const quincena = "1ra";
+  // Quincena dinámica: formato YYYY-MM para acumulación mensual
+  const hoy = new Date();
+  const quincena = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+
 
   let suma = 0;
   Object.values(respuestas).forEach(valor => {

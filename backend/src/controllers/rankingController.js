@@ -3,12 +3,21 @@ const RankingQuincenal = require('../models/RankingQuincenal');
 const Autoevaluacion = require('../models/Autoevaluacion');
 const Usuario = require('../models/Usuario');
 
+
+// Helper: Generar el identificador del mes actual "YYYY-MM"
+function getMesActual() {
+  const hoy = new Date();
+  const anio = hoy.getFullYear();
+  const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+  return `${anio}-${mes}`;
+}
+
 exports.getAllRankings = async (req, res) => {
   try {
     let query = {};
     if (req.query.quincena) {
       let quincena = req.query.quincena;
-      if (quincena === 'actual') quincena = '1ra'; // Lógica legacy
+      if (quincena === 'actual') quincena = getMesActual(); // Lógica legacy
       query.quincena = quincena;
     }
 
@@ -56,7 +65,8 @@ exports.getRankingById = async (req, res) => {
 exports.recalcularRanking = async (req, res) => {
   try {
     let quincena = req.body.quincena || req.query.quincena;
-    if (!quincena || quincena === 'actual') quincena = '1ra';
+    if (quincena === 'actual') quincena = getMesActual();
+
 
     // 1. Borrar ranking anterior de esa quincena
     await RankingQuincenal.deleteMany({ quincena });
@@ -104,7 +114,8 @@ exports.getMiPosicion = async (req, res) => {
     if (!usuarioid) return res.status(401).json({ error: 'Usuario no autenticado' });
 
     let quincena = req.query.quincena || 'actual';
-    if (quincena === 'actual') quincena = '1ra';
+    if (quincena === 'actual') quincena = getMesActual();
+
 
     const ranking = await RankingQuincenal.findOne({ usuarioid, quincena });
 
