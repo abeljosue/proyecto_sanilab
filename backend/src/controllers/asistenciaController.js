@@ -57,7 +57,7 @@ exports.getAllAsistencias = async (req, res) => {
 exports.marcarEntrada = async (req, res) => {
   try {
     const usuarioid = req.user.id;
-    const { horaLocal } = req.body; // HH:mm expected
+    const { horaLocal } = req.body;
 
     if (!horaLocal) {
       return res.status(400).json({ error: 'Falta horaLocal en la petición' });
@@ -69,20 +69,71 @@ exports.marcarEntrada = async (req, res) => {
     const diaSemana = hoy.getDay();
     const fechaHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
 
+    // 🌙 PASO 0: Verificar si hay jornada abierta de un DÍA ANTERIOR
+    const jornadaAnterior = await Asistencia.findOne({
+      usuarioid: usuarioid,
+      fecha: { $lt: fechaHoy },
+      estado: { $nin: ['Jornada terminada', 'Ausente', 'Licencia'] },
+      horaentrada: { $ne: null }
+    }).sort({ fecha: -1 });
+
+    if (jornadaAnterior) {
+      console.log(`🌙 Auto-cerrando jornada anterior del usuario ${usuarioid} (fecha: ${jornadaAnterior.fecha})`);
+
+      // Calcular horas trabajadas de la jornada nocturna
+      const startSeconds = timeToSeconds(jornadaAnterior.horaentrada);
+      const horaEntradaNum = parseInt(jornadaAnterior.horaentrada.split(':')[0], 10);
+
+      let horaSalidaGenerada;
+      let segundosTrabajados;
+
+      if (horaEntradaNum >= 18) {
+        // Entrada nocturna: cortar a las 7AM (o 10h, lo que sea menor)
+        const horasHasta7AM = (24 - horaEntradaNum) + 7;
+        const limiteHoras = Math.min(10, horasHasta7AM);
+        segundosTrabajados = limiteHoras * 3600;
+
+        const salidaSeconds = startSeconds + (limiteHoras * 3600);
+        const h = Math.floor((salidaSeconds % 86400) / 3600);
+        const m = Math.floor((salidaSeconds % 3600) / 60);
+        const s = Math.floor(salidaSeconds % 60);
+        horaSalidaGenerada = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+      } else {
+        // Entrada diurna que se quedó abierta: aplicar 10h normal
+        segundosTrabajados = 10 * 3600;
+        const salidaSeconds = startSeconds + (10 * 3600);
+        const h = Math.floor((salidaSeconds % 86400) / 3600);
+        const m = Math.floor((salidaSeconds % 3600) / 60);
+        const s = Math.floor(salidaSeconds % 60);
+        horaSalidaGenerada = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+      }
+
+      // Cerrar tramo abierto si existe
+      const tramoAbierto = jornadaAnterior.tramos.find(t => !t.horasalida);
+      if (tramoAbierto) {
+        tramoAbierto.horasalida = horaSalidaGenerada;
+      }
+
+      jornadaAnterior.horasalida = horaSalidaGenerada;
+      jornadaAnterior.horas_trabajadas = segundosTrabajados;
+      jornadaAnterior.estado = 'Jornada terminada';
+      jornadaAnterior.cierre_automatico = true;
+      await jornadaAnterior.save();
+
+      console.log(`✅ Jornada anterior cerrada automáticamente: ${horaSalidaGenerada} (${segundosTrabajados / 3600}h)`);
+    }
+
+    // PASO 1: Buscar si ya hay asistencia de HOY
     let tardanzaMinutos = 0;
     let esTarde = false;
 
-    // Buscar horario solo si es la PRIMERA entrada del día
-    // (Lógica simplificada: si no existe asistencia, es la primera entrada)
-
-    // Buscar asistencia existente
     let asistencia = await Asistencia.findOne({
       usuarioid: usuarioid,
       fecha: fechaHoy
     });
 
     if (!asistencia) {
-      // Es la primera entrada del día, verificamos horario
+      // Primera entrada del día, verificar horario para tardanza
       const horario = await HorarioTrabajador.findOne({
         usuario_id: usuarioid,
         dia_semana: diaSemana,
@@ -104,11 +155,11 @@ exports.marcarEntrada = async (req, res) => {
         tramos: []
       });
     } else {
-      // Si ya existe, es una reanudación de jornada (o error si ya está abierta)
+      // Ya existe registro hoy, es una reanudación
       asistencia.estado = 'En jornada';
     }
 
-    // Verificar si ya hay un tramo abierto
+    // Verificar tramo abierto
     const tramoAbierto = asistencia.tramos.find(t => !t.horasalida);
     if (tramoAbierto) {
       return res.status(400).json({ error: 'Ya tienes un turno en curso. Debes pausar o terminar antes de iniciar otro.' });
@@ -140,6 +191,7 @@ exports.marcarEntrada = async (req, res) => {
     return res.status(500).json({ error: 'Error interno al marcar entrada' });
   }
 };
+
 
 exports.marcarSalida = async (req, res) => {
   try {
@@ -263,16 +315,15 @@ exports.obtenerEstadoActual = async (req, res) => {
 // MOTOR DE AUTO-CIERRE: CRON JOB SIMULADO
 // ==========================================
 exports.iniciarAutoCierre = () => {
-  // ⏱️ AJUSTA ESTA VARIABLE PARA CAMBIAR EL LÍMITE (ej. 10.5 para diez horas y media)
   const HORAS_MAXIMAS = 10;
+  const HORA_CORTE_NOCTURNO = 7; // 7:00 AM → tope para turnos nocturnos
 
-  // Ejecutar cada 30 minutos (1,800,000 milisegundos)
+  // Ejecutar cada 30 minutos
   setInterval(async () => {
     try {
       const ahora = new Date();
 
-      // 1. Buscar TODAS las asistencias abiertas (soluciona el bug de los trasnochadores)
-      // 🛡️ Solo auto-cerrar jornadas que NO tengan hora de salida (evita pisar ediciones del admin)
+      // Buscar jornadas abiertas SIN hora de salida
       const asistenciasAbiertas = await Asistencia.find({
         estado: { $nin: ['Jornada terminada', 'Ausente', 'Licencia'] },
         horaentrada: { $ne: null },
@@ -282,46 +333,60 @@ exports.iniciarAutoCierre = () => {
         ]
       });
 
-
       for (const asistencia of asistenciasAbiertas) {
-        // Asegurarnos de que tenga su marca de tiempo absoluto (lo pone Mongo automáticamente)
         if (!asistencia.fecha_creacion) continue;
 
-        // 2. ¿Cuánto ha pasado exactamente desde que hizo clic en Entrar? (Tiempo en milisegundos)
         const tiempoTranscurridoMs = ahora.getTime() - asistencia.fecha_creacion.getTime();
+        const horasTranscurridas = tiempoTranscurridoMs / (3600 * 1000);
 
-        // 3. ¿Ese tiempo supera nuestras HORAS_MAXIMAS convertidas a milisegundos?
-        if (tiempoTranscurridoMs >= (HORAS_MAXIMAS * 3600 * 1000)) {
-          console.log(`⏱️ Auto-cerrando jornada (Tiempo absoluto expirado: ${HORAS_MAXIMAS}h) -> Usuario ID: ${asistencia.usuarioid}`);
+        // 🌙 Detectar si es entrada nocturna usando horaentrada (hora LOCAL, sin zonas horarias)
+        const horaEntradaNum = parseInt(asistencia.horaentrada.split(':')[0], 10);
+        const esNocturno = horaEntradaNum >= 18; // 6PM o más tarde
 
-          // Generar la "hora de salida ideal" en texto (Ej: Si entró 08:00, sumarle las 10h)
+        let limiteHoras;
+        if (esNocturno) {
+          // Nocturno: mínimo entre 10h y horas-hasta-7AM
+          const horasHasta7AM = (24 - horaEntradaNum) + HORA_CORTE_NOCTURNO;
+          limiteHoras = Math.min(HORAS_MAXIMAS, horasHasta7AM);
+        } else {
+          // Diurno: límite normal de 10 horas
+          limiteHoras = HORAS_MAXIMAS;
+        }
+
+        // ¿Ya superó el límite?
+        if (horasTranscurridas >= limiteHoras) {
+          console.log(`⏱️ Auto-cerrando jornada → Usuario: ${asistencia.usuarioid} | Entrada: ${asistencia.horaentrada} | Límite: ${limiteHoras}h ${esNocturno ? '(NOCTURNO)' : '(DIURNO)'}`);
+
+          // Generar hora de salida
           const startSeconds = timeToSeconds(asistencia.horaentrada);
-          const salidaIdealSeconds = startSeconds + (HORAS_MAXIMAS * 3600);
+          const salidaIdealSeconds = startSeconds + (limiteHoras * 3600);
 
           const h = Math.floor((salidaIdealSeconds % 86400) / 3600);
           const m = Math.floor((salidaIdealSeconds % 3600) / 60);
           const s = Math.floor(salidaIdealSeconds % 60);
           const horaSalidaGenerada = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 
-          // Cerrar posible tramo en curso
+          // Cerrar tramo abierto
           const tramoAbierto = asistencia.tramos.find(t => !t.horasalida);
           if (tramoAbierto) {
             tramoAbierto.horasalida = horaSalidaGenerada;
           }
 
-          // Inyectar datos de auto-cierre
+          // Guardar datos de cierre
           asistencia.horasalida = horaSalidaGenerada;
-          asistencia.horas_trabajadas = HORAS_MAXIMAS * 3600;
+          asistencia.horas_trabajadas = limiteHoras * 3600;
           asistencia.estado = 'Jornada terminada';
-          asistencia.cierre_automatico = true; // 🚩 BANDERA PARA EL PANEL ADMIN
+          asistencia.cierre_automatico = true;
 
           await asistencia.save();
+          console.log(`✅ Jornada cerrada: ${asistencia.horaentrada} → ${horaSalidaGenerada} (${limiteHoras}h)`);
         }
       }
     } catch (error) {
       console.error('Error en iniciarAutoCierre:', error);
     }
 
-  }, 1800000); // 1,800,000 ms = 30 min
+  }, 1800000); // 30 minutos
 };
+
 
