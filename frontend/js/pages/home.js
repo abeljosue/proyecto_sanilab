@@ -66,6 +66,55 @@ function lanzarCañonesConfeti() {
     }
   }());
 }
+// 📋 MODAL DE RECORDATORIO DE AUTOEVALUACIÓN (Miércoles y Sábados)
+async function verificarRecordatorioAutoeval() {
+  const token = localStorage.getItem('token');
+  if (!token) return;
+
+  // Control: no mostrar dos veces al mismo usuario el mismo día
+  const claveVisto = getTodayKey('autoeval_reminder_visto');
+  if (localStorage.getItem(claveVisto) === '1') return;
+
+  try {
+    const res = await axios.get('/api/autoevaluaciones/estado', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const estado = res.data;
+
+    // Solo mostrar si es día permitido Y aún no ha completado
+    if (estado.permitido) {
+      localStorage.setItem(claveVisto, '1'); // Marcar como visto
+
+      await Swal.fire({
+        icon: 'warning',
+        title: '📋 ¡Hoy toca Autoevaluación!',
+        html: `
+          <div style="text-align:center;">
+            <p style="font-size:17px; margin-bottom:12px;">
+              Tienes una <strong>autoevaluación pendiente</strong> para hoy.
+            </p>
+            <p style="font-size:14px; color:#666;">
+              Recuerda completarla antes de que termine el día.<br>
+              ¡Tu puntaje se reflejará en el ranking mensual! 🏆
+            </p>
+          </div>
+        `,
+        confirmButtonText: '¡Vamos! ✅',
+        showCancelButton: true,
+        cancelButtonText: 'Luego',
+        confirmButtonColor: '#4CAF50',
+        cancelButtonColor: '#888'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          window.location.href = '/pages/autoevaluacion/index.html';
+        }
+      });
+    }
+  } catch (err) {
+    console.error('Error verificando recordatorio autoeval:', err);
+  }
+}
+
 async function verificarCumpleanosDelDia() {
   const token = localStorage.getItem('token');
   if (!token) return;
@@ -271,6 +320,7 @@ function initHome() {
   verificarConstancia520();
   verificarEvaluacionCompaneros();
   verificarCumpleanosDelDia();
+  verificarRecordatorioAutoeval();
 }
 
 async function verificarConstancia520() {
