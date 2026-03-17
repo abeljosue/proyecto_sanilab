@@ -185,13 +185,41 @@ async function configurarBotonResultados() {
 
     const data = await res.json();
 
+    // Solo mostrar si está en top 3
     if (data.posicion && data.posicion <= 3) {
       btnResultados.style.display = 'flex';
+
+      const hoy = new Date();
+      const dia = hoy.getDay(); // 0=Dom, 6=Sáb
+
+      if (dia !== 2) {
+        // No es sábado: mostrar mensaje si hace clic
+        const desc = btnResultados.querySelector('.button-description');
+        if (desc) {
+          desc.textContent = 'Disponible solo los Sábados';
+        }
+
+        btnResultados.onclick = function (e) {
+          e.preventDefault();
+          Swal.fire({
+            icon: 'info',
+            title: '📅 Aún no es día de ruleta',
+            html: `
+              <p style="font-size:16px;">La ruleta solo está disponible los <strong>Sábados</strong>.</p>
+              <p style="font-size:14px; color:#888; margin-top:10px;">¡Sigue esforzándote y el sábado podrás girar la ruleta! 💪🌱</p>
+            `,
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#4CAF50'
+          });
+        };
+      }
+      // Si es sábado, el onclick original del HTML ya navega a la página
     }
   } catch (err) {
     console.error('Error al configurar botón Resultados:', err);
   }
 }
+
 
 async function marcarProgresoHome() {
   const asistenciaDone = localStorage.getItem(getTodayKey('asis_completa')) === '1';
