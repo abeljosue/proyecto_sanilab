@@ -9,13 +9,13 @@ function getMesActual() {
   return `${anio}-${mes}`;
 }
 
-// Helper: Calcular el próximo día permitido (Miércoles=3 o Sábado=6)
+// Helper: Calcular el próximo día permitido (Lunes=1 a Viernes=5)
 function getProximoDiaPermitido() {
   const hoy = new Date();
   const dia = hoy.getDay(); // 0=Dom, 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb
 
-  // Días permitidos: 3 (Miércoles) y 6 (Sábado)
-  const diasPermitidos = [3, 6];
+  // Días permitidos: 1-5 (Lunes a Viernes)
+  const diasPermitidos = [1, 2, 3, 4, 5];
 
   for (let i = 1; i <= 7; i++) {
     const siguiente = (dia + i) % 7;
@@ -29,7 +29,7 @@ function getProximoDiaPermitido() {
       };
     }
   }
-  return { nombre: 'Miércoles', fecha: '' };
+  return { nombre: 'Lunes', fecha: '' };
 }
 
 // Helper: Obtener inicio y fin del bloque actual (Mié o Sáb)
@@ -52,15 +52,15 @@ exports.getEstado = async (req, res) => {
     const hoy = new Date();
     const dia = hoy.getDay(); // 0=Dom, 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb
 
-    // ⏱️ DÍAS PERMITIDOS: Miércoles (3) y Sábado (6)
-    const DIAS_PERMITIDOS = [3, 6];
+    // ⏱️ DÍAS PERMITIDOS: Lunes (1) a Viernes (5)
+    const DIAS_PERMITIDOS = [1, 2, 3, 4, 5];
 
     // 1. Verificar si hoy es día permitido
     if (!DIAS_PERMITIDOS.includes(dia)) {
       const proximo = getProximoDiaPermitido();
       return res.json({
         permitido: false,
-        razon: `Las autoevaluaciones solo están habilitadas los Miércoles y Sábados.`,
+        razon: `Las autoevaluaciones solo están habilitadas de Lunes a Viernes.`,
         proximoDia: proximo.nombre,
         proximaFecha: proximo.fecha
       });
@@ -139,9 +139,9 @@ exports.crearAutoevaluacion = async (req, res) => {
 
     // VALIDACIÓN 1: Verificar día permitido
     const dia = new Date().getDay();
-    const DIAS_PERMITIDOS = [3, 6];
+    const DIAS_PERMITIDOS = [1, 2, 3, 4, 5];
     if (!DIAS_PERMITIDOS.includes(dia)) {
-      return res.status(403).json({ error: 'Las autoevaluaciones solo están permitidas los Miércoles y Sábados.' });
+      return res.status(403).json({ error: 'Las autoevaluaciones solo están permitidas de Lunes a Viernes.' });
     }
 
     // VALIDACIÓN 2: Verificar que no haya completado hoy
