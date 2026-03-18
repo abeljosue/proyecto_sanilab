@@ -168,53 +168,66 @@ async function configurarBotonResultados() {
   const btnResultados = document.querySelector('.nav-button[data-section="resultados"]');
   if (!btnResultados) return;
 
-  btnResultados.style.display = 'none';
+  btnResultados.style.display = 'none'; // Oculto por defecto hasta validar
 
   const token = localStorage.getItem('token');
   if (!token) return;
 
   try {
-    const res = await fetch('/api/rankings/mi-posicion?quincena=actual', {
+    // 1. Consultamos el estado real al backend (este endpoint ya valida Ranking, Día y Giro)
+    const res = await fetch('/api/ruleta/estado', {
       headers: { Authorization: `Bearer ${token}` }
     });
 
     if (!res.ok) {
-      console.warn('No se pudo obtener posición de ranking');
+      // Si el servidor da error (ej. 403 por ranking), simplemente no mostramos el botón
       return;
     }
 
-    const data = await res.json();
+    const estado = await res.json();
 
-    // Solo mostrar si está en top 3
-    if (data.posicion && data.posicion <= 3) {
-      btnResultados.style.display = 'flex';
-
-      const hoy = new Date();
-      const dia = hoy.getDay(); // 0=Dom, 6=Sáb
-
-      if (dia !== 2) {
-        // No es sábado: mostrar mensaje si hace clic
-        const desc = btnResultados.querySelector('.button-description');
-        if (desc) {
-          desc.textContent = 'Disponible solo los Sábados';
-        }
-
-        btnResultados.onclick = function (e) {
-          e.preventDefault();
-          Swal.fire({
-            icon: 'info',
-            title: '📅 Aún no es día de ruleta',
-            html: `
-              <p style="font-size:16px;">La ruleta solo está disponible los <strong>Sábados</strong>.</p>
-              <p style="font-size:14px; color:#888; margin-top:10px;">¡Sigue esforzándote y el sábado podrás girar la ruleta! 💪🌱</p>
-            `,
-            confirmButtonText: 'Entendido',
-            confirmButtonColor: '#4CAF50'
-          });
-        };
-      }
-      // Si es sábado, el onclick original del HTML ya navega a la página
+    // 2. Si el tipo es 'fuera_top3', mantenemos el botón oculto
+    if (estado.tipo === 'fuera_top3') {
+      btnResultados.style.display = 'none';
+      return;
     }
+
+    // 3. Si llegó aquí, es Top 3. Mostramos el botón.
+    btnResultados.style.display = 'flex';
+
+    // 4. Lógica de bloqueo preventivo
+    const desc = btnResultados.querySelector('.button-description');
+
+    if (!estado.permitido) {
+      // Configuramos el mensaje de descripción
+      if (desc) {
+        desc.textContent = (estado.tipo === 'ya_giro')
+          ? 'Premio ya reclamado'
+          : 'Disponible solo los Sábados';
+      }
+
+      // Bloqueamos el clic para mostrar el mensaje de error específico
+      btnResultados.onclick = function (e) {
+        e.preventDefault(); // Evita que navegue a la página de ruleta
+
+        Swal.fire({
+          icon: (estado.tipo === 'ya_giro') ? 'success' : 'info',
+          title: (estado.tipo === 'ya_giro') ? '🎉 ¡Ya participaste!' : '📅 Aún no es el día',
+          html: `<p style="font-size:16px;">${estado.razon}</p>`,
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#4CAF50'
+        });
+      };
+    } else {
+      // SI ESTÁ PERMITIDO:
+      if (desc) desc.textContent = 'Reclama tu premio';
+
+      // Aseguramos que el botón navegue a la página de resultados
+      btnResultados.onclick = function () {
+        window.location.href = '/pages/resultados/resultados.html';
+      };
+    }
+
   } catch (err) {
     console.error('Error al configurar botón Resultados:', err);
   }
