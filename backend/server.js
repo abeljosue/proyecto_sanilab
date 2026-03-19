@@ -30,7 +30,11 @@ const connectDB = require('./config/dbMongo');
 // Conectar a MongoDB
 connectDB();
 
-app.use(cors());
+app.use(cors({
+  origin: '*',  // Lo ajustaremos cuando tengamos la URL de Vercel
+  credentials: true
+}));
+
 app.use(express.json());
 
 app.use(express.static(frontendPath, {
