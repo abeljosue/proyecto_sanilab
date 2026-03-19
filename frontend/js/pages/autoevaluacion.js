@@ -4,6 +4,37 @@ let respuestas = {};
 let idPreguntaPuntualidad = null;
 let paginaActual = 1;
 const PREGUNTAS_POR_PAGINA = 6;
+// ================= INTERCEPTOR GLOBAL DE AXIOS =================
+// Este vigilante "escucha" si el servidor devuelve Error 401 (Token Vencido)
+axios.interceptors.response.use(
+  function (response) {
+    return response;
+  },
+  function (error) {
+    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+      // 1. Limpiar todos los datos locales
+      localStorage.removeItem('token');
+      localStorage.removeItem('usuarioid');
+      localStorage.removeItem('usuario');
+      localStorage.removeItem('areaid');
+
+      // 2. Avisar al usuario y enviarlo al login
+      Swal.fire({
+        icon: 'warning',
+        title: 'Sesión Expirada ⏱️',
+        text: 'Han pasado 8 horas o tu sesión es inválida. Ingresa de nuevo.',
+        confirmButtonText: 'Ir al Login',
+        allowOutsideClick: false,
+        allowEscapeKey: false
+      }).then(() => {
+        window.location.href = '/index.html';
+      });
+    }
+    return Promise.reject(error);
+  }
+);
+// ===============================================================
+
 
 function getTodayKey(prefix) {
   const usuarioid = localStorage.getItem('usuarioid') || 'anon';
@@ -43,8 +74,24 @@ window.onload = async function () {
     }
   } catch (error) {
     console.error('Error verificando estado de autoevaluación:', error);
-    // Si falla la verificación, dejamos pasar (fail-open) para no bloquear en caso de error de red
+
+    // Si el error fue por expiración (401), el Interceptor ya se está encargando
+    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+      return; // Detenemos la ejecución aquí
+    }
+
+    // SI LA RED FALLA, AHORA BLOQUEAMOS LA ENTRADA (Fail-Closed)
+    await Swal.fire({
+      icon: 'error',
+      title: '❌ Error de Conexión',
+      text: 'No pudimos verificar tu estado en el servidor. Revisa tu internet o intenta de nuevo.',
+      confirmButtonText: 'Volver',
+      allowOutsideClick: false
+    });
+    window.location.href = '/pages/home/index.html';
+    return; // Evita que cargue el form
   }
+
   // ============ FIN VERIFICACIÓN ============
 
   try {

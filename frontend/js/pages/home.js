@@ -1,3 +1,34 @@
+// ================= INTERCEPTOR GLOBAL DE AXIOS =================
+// Este vigilante "escucha" si el servidor devuelve Error 401 (Token Vencido)
+axios.interceptors.response.use(
+  function (response) {
+    return response;
+  },
+  function (error) {
+    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+      // 1. Limpiar todos los datos locales
+      localStorage.removeItem('token');
+      localStorage.removeItem('usuarioid');
+      localStorage.removeItem('usuario');
+      localStorage.removeItem('areaid');
+
+      // 2. Avisar al usuario y enviarlo al login
+      Swal.fire({
+        icon: 'warning',
+        title: 'Sesión Expirada ⏱️',
+        text: 'Han pasado 8 horas o tu sesión es inválida. Ingresa de nuevo.',
+        confirmButtonText: 'Ir al Login',
+        allowOutsideClick: false,
+        allowEscapeKey: false
+      }).then(() => {
+        window.location.href = '/index.html';
+      });
+    }
+    return Promise.reject(error);
+  }
+);
+// ===============================================================
+
 if (!localStorage.getItem('token')) {
   window.location.href = '/pages/auth/registro.html';
 }
