@@ -26,7 +26,7 @@ exports.getEstadoRuleta = async (req, res) => {
         const dia = hoy.getDay(); // 0=Dom, 1=Lun, ..., 6=Sáb
 
         // 1. Verificar que sea Sábado (día 6)
-        if (dia !== 6) { // Cambiado temporalmente de 6 a 3 para pruebas (Miércoles)
+        if (dia !== 6) { // Solo Sábados
             const nombres = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
             const hoyNombre = nombres[dia];
             return res.json({
@@ -84,7 +84,7 @@ exports.registrarGiro = async (req, res) => {
         const dia = hoy.getDay();
 
         // Validación 1: Solo Sábados
-        if (dia !== 6) { // Cambiado temporalmente de 6 a 3 para pruebas (Miércoles)
+        if (dia !== 6) { // Solo Sábados
             return res.status(403).json({ error: 'La ruleta solo está disponible los Sábados.' });
         }
 
