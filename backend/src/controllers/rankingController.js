@@ -29,7 +29,9 @@ exports.getAllRankings = async (req, res) => {
     const result = rankings.map(r => ({
       id: r.id,
       usuarioid: r.usuarioid?._id,
-      nombre: r.usuarioid ? `${r.usuarioid.nombre}` : 'Usuario eliminado', // SQL solo devolvía nombre
+      nombre: r.usuarioid 
+        ? `${r.usuarioid.nombre.split(' ')[0]} ${r.usuarioid.apellido ? r.usuarioid.apellido.split(' ')[0] : ''}`.trim()
+        : 'Usuario eliminado',
       quincena: r.quincena,
       puntajetotal: r.puntajetotal,
       posicion: r.posicion,
@@ -45,7 +47,8 @@ exports.getAllRankings = async (req, res) => {
 
 exports.getRankingById = async (req, res) => {
   try {
-    const ranking = await RankingQuincenal.findById(req.params.id).populate('usuarioid', 'nombre');
+    const ranking = await RankingQuincenal.findById(req.params.id)
+      .populate('usuarioid', 'nombre apellido');
 
     if (!ranking) {
       return res.status(404).json({ error: 'Ranking not found' });
@@ -53,7 +56,9 @@ exports.getRankingById = async (req, res) => {
 
     const result = {
       ...ranking.toObject(),
-      nombre: ranking.usuarioid ? ranking.usuarioid.nombre : 'Desconocido'
+      nombre: ranking.usuarioid 
+        ? `${ranking.usuarioid.nombre.split(' ')[0]} ${ranking.usuarioid.apellido ? ranking.usuarioid.apellido.split(' ')[0] : ''}`.trim()
+        : 'Desconocido'
     };
 
     res.json(result);
