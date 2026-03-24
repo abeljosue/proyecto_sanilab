@@ -87,7 +87,7 @@ app.listen(PORT, () => {
   // Iniciar el script "Milagro" para Render Keep-Alive
   const renderUrl = process.env.RENDER_URL;
   if (renderUrl) {
-    keepAlive(renderUrl);
+    keepAlive(renderUrl, 10);
   } else {
     console.log('💡 Keep-Alive: RENDER_URL no configurado, omitiendo auto-ping.');
   }
