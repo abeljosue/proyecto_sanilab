@@ -1,6 +1,7 @@
 const path = require('path');
 require('dotenv').config();
 const chatbotRoutes = require('./src/routes/chatbotRoutes');
+const keepAlive = require('./src/utils/keepAlive');
 
 console.log('🧪 TEST - OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'OK' : 'MISSING');
 console.log('🧪 TEST - GOOGLE_SHEETS_ID:', process.env.GOOGLE_SHEETS_ID);
@@ -82,6 +83,14 @@ app.listen(PORT, () => {
   console.log(`📁 Frontend: ${frontendPath}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🍃 Database: MongoDB`);
+
+  // Iniciar el script "Milagro" para Render Keep-Alive
+  const renderUrl = process.env.RENDER_URL;
+  if (renderUrl) {
+    keepAlive(renderUrl);
+  } else {
+    console.log('💡 Keep-Alive: RENDER_URL no configurado, omitiendo auto-ping.');
+  }
 });
 
 process.on('SIGTERM', () => {
