@@ -1,6 +1,7 @@
 
 const Asistencia = require('../models/Asistencia');
 const HorarioTrabajador = require('../models/HorarioTrabajador');
+const { getFechaHoyMidnight, getLocalDate } = require('../utils/dateUtils');
 
 function calcularMinutosTarde(horaEsperada, horaActual) {
   const [hE, mE] = horaEsperada.split(':').map(Number);
@@ -65,9 +66,9 @@ exports.marcarEntrada = async (req, res) => {
 
     console.log('🕐 Marcando entrada/reanudación:', usuarioid, horaLocal);
 
-    const hoy = new Date();
+    const hoy = getLocalDate();
     const diaSemana = hoy.getDay();
-    const fechaHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const fechaHoy = getFechaHoyMidnight();
 
     // 🌙 PASO 0: Verificar si hay jornada abierta de un DÍA ANTERIOR
     const jornadaAnterior = await Asistencia.findOne({
@@ -265,8 +266,7 @@ exports.marcarSalida = async (req, res) => {
 exports.obtenerEstadoActual = async (req, res) => {
   try {
     const usuarioid = req.user.id;
-    const hoy = new Date();
-    const fechaHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const fechaHoy = getFechaHoyMidnight();
 
     // 1. Buscar jornada de HOY
     let asistencia = await Asistencia.findOne({
@@ -321,7 +321,7 @@ exports.iniciarAutoCierre = () => {
   // Ejecutar cada 30 minutos
   setInterval(async () => {
     try {
-      const ahora = new Date();
+      const ahora = getLocalDate();
 
       // Buscar jornadas abiertas SIN hora de salida
       const asistenciasAbiertas = await Asistencia.find({

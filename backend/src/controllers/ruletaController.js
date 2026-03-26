@@ -1,9 +1,9 @@
-const RankingQuincenal = require('../models/RankingQuincenal');
 const GiroRuleta = require('../models/GiroRuleta');
+const { getLocalDate } = require('../utils/dateUtils');
 
 // Helper: Obtener identificador de semana actual "YYYY-WNN"
 function getSemanaActual() {
-    const hoy = new Date();
+    const hoy = getLocalDate();
     const inicioAnio = new Date(hoy.getFullYear(), 0, 1);
     const dias = Math.floor((hoy - inicioAnio) / (24 * 60 * 60 * 1000));
     const numSemana = Math.ceil((dias + inicioAnio.getDay() + 1) / 7);
@@ -12,7 +12,7 @@ function getSemanaActual() {
 
 // Helper: Obtener quincena/mes actual "YYYY-MM"
 function getMesActual() {
-    const hoy = new Date();
+    const hoy = getLocalDate();
     const anio = hoy.getFullYear();
     const mes = String(hoy.getMonth() + 1).padStart(2, '0');
     return `${anio}-${mes}`;
@@ -22,7 +22,7 @@ function getMesActual() {
 exports.getEstadoRuleta = async (req, res) => {
     try {
         const usuarioid = req.user.id;
-        const hoy = new Date();
+        const hoy = getLocalDate();
         const dia = hoy.getDay(); // 0=Dom, 1=Lun, ..., 6=Sáb
 
         // 1. Verificar que sea Sábado (día 6)
@@ -80,7 +80,7 @@ exports.registrarGiro = async (req, res) => {
     try {
         const usuarioid = req.user.id;
         const { premio } = req.body;
-        const hoy = new Date();
+        const hoy = getLocalDate();
         const dia = hoy.getDay();
 
         // Validación 1: Solo Sábados
@@ -108,7 +108,7 @@ exports.registrarGiro = async (req, res) => {
         const nuevoGiro = new GiroRuleta({
             usuarioid,
             premio,
-            fechagiro: new Date(),
+            fechagiro: getLocalDate(),
             semana
         });
 

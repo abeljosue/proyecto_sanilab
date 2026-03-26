@@ -1,9 +1,10 @@
 
 const Autoevaluacion = require('../models/Autoevaluacion');
+const { getLocalDate, getRangoHoy, getHoyString } = require('../utils/dateUtils');
 
 // Helper: Generar el identificador del mes actual "YYYY-MM"
 function getMesActual() {
-  const hoy = new Date();
+  const hoy = getLocalDate();
   const anio = hoy.getFullYear();
   const mes = String(hoy.getMonth() + 1).padStart(2, '0');
   return `${anio}-${mes}`;
@@ -11,7 +12,7 @@ function getMesActual() {
 
 // Helper: Calcular el próximo día permitido (Lunes=1 a Viernes=5)
 function getProximoDiaPermitido() {
-  const hoy = new Date();
+  const hoy = getLocalDate();
   const dia = hoy.getDay(); // 0=Dom, 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb
 
   // Días permitidos: 1-5 (Lunes a Viernes)
@@ -34,22 +35,15 @@ function getProximoDiaPermitido() {
 
 // Helper: Obtener inicio y fin del bloque actual (Mié o Sáb)
 function getRangoBloque() {
-  const hoy = new Date();
-  const dia = hoy.getDay();
-
-  // Inicio del día actual (00:00:00)
-  const inicioHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
-  // Fin del día actual (23:59:59)
-  const finHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59, 999);
-
-  return { inicio: inicioHoy, fin: finHoy };
+  const { inicio, fin } = getRangoHoy();
+  return { inicio, fin };
 }
 
 // ========== NUEVO ENDPOINT: Estado de autoevaluación ==========
 exports.getEstado = async (req, res) => {
   try {
     const usuarioid = req.user.id;
-    const hoy = new Date();
+    const hoy = getLocalDate();
     const dia = hoy.getDay(); // 0=Dom, 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb
 
     // ⏱️ DÍAS PERMITIDOS: Lunes (1) a Viernes (5)
@@ -138,7 +132,7 @@ exports.crearAutoevaluacion = async (req, res) => {
     const quincena = getMesActual();
 
     // VALIDACIÓN 1: Verificar día permitido
-    const dia = new Date().getDay();
+    const dia = getLocalDate().getDay();
     const DIAS_PERMITIDOS = [1, 2, 3, 4, 5];
     if (!DIAS_PERMITIDOS.includes(dia)) {
       return res.status(403).json({ error: 'Las autoevaluaciones solo están permitidas de Lunes a Viernes.' });
@@ -159,7 +153,7 @@ exports.crearAutoevaluacion = async (req, res) => {
     // Crear la autoevaluación con respuestas incrustadas
     const nuevaAutoevaluacion = new Autoevaluacion({
       usuarioid,
-      fechaevaluacion: new Date(),
+      fechaevaluacion: getLocalDate(),
       puntajetotal,
       quincena,
       mensajemotivacional,

@@ -1,5 +1,7 @@
+const { getLocalDate } = require('./dateUtils');
+
 function obtenerQuincenaActual() {
-  const hoy = new Date();
+  const hoy = getLocalDate();
   const year = hoy.getFullYear();
   const month = String(hoy.getMonth() + 1).padStart(2, '0');
   const day = hoy.getDate();

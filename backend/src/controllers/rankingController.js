@@ -2,11 +2,12 @@
 const RankingQuincenal = require('../models/RankingQuincenal');
 const Autoevaluacion = require('../models/Autoevaluacion');
 const Usuario = require('../models/Usuario');
+const { getLocalDate } = require('../utils/dateUtils');
 
 
 // Helper: Generar el identificador del mes actual "YYYY-MM"
 function getMesActual() {
-  const hoy = new Date();
+  const hoy = getLocalDate();
   const anio = hoy.getFullYear();
   const mes = String(hoy.getMonth() + 1).padStart(2, '0');
   return `${anio}-${mes}`;

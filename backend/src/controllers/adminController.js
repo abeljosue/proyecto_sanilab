@@ -3,6 +3,7 @@ const Asistencia = require('../models/Asistencia');
 const Usuario = require('../models/Usuario');
 const RankingQuincenal = require('../models/RankingQuincenal');
 const googleSheetsService = require('../services/googleSheetsService');
+const { getFechaHoyMidnight } = require('../utils/dateUtils');
 
 exports.getHoras = async (req, res) => {
   try {
@@ -157,8 +158,7 @@ exports.exportHorasSheets = async (req, res) => {
 exports.getAllAsistencias = exports.getHoras; // O adaptar según necesidad
 exports.getFaltantesHoy = async (req, res) => {
   try {
-    const hoy = new Date();
-    const fechaHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const fechaHoy = getFechaHoyMidnight();
 
     const asistenciasHoy = await Asistencia.find({
       fecha: fechaHoy,

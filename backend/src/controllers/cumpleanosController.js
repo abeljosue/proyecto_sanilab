@@ -1,4 +1,5 @@
 const Usuario = require('../models/Usuario');
+const { getLocalDate } = require('../utils/dateUtils');
 
 exports.obtenerCumpleanos = async (req, res) => {
     try {
@@ -9,7 +10,7 @@ exports.obtenerCumpleanos = async (req, res) => {
         }).select('nombre apellido correo cumpleanos areaid').populate('areaid', 'nombre');
 
         // 2. Obtener información de la fecha actual (mes y día)
-        const hoy = new Date();
+        const hoy = getLocalDate();
         const mesActual = hoy.getMonth() + 1; // 1-12
         const diaActual = hoy.getDate();
 
