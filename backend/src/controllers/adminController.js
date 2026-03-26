@@ -2,8 +2,9 @@
 const Asistencia = require('../models/Asistencia');
 const Usuario = require('../models/Usuario');
 const RankingQuincenal = require('../models/RankingQuincenal');
+const Autoevaluacion = require('../models/Autoevaluacion');
 const googleSheetsService = require('../services/googleSheetsService');
-const { getFechaHoyMidnight } = require('../utils/dateUtils');
+const { getFechaHoyMidnight, getRangoHoy } = require('../utils/dateUtils');
 
 exports.getHoras = async (req, res) => {
   try {
@@ -19,6 +20,12 @@ exports.getHoras = async (req, res) => {
       if (fechaHasta) {
         filter.fecha.$lte = new Date(`${fechaHasta}T23:59:59.999Z`);
       }
+    } else {
+      // 🛡️ MEJORA: Por defecto solo mostrar hoy y ayer
+      const hoy = getFechaHoyMidnight();
+      const ayer = new Date(hoy);
+      ayer.setUTCDate(hoy.getUTCDate() - 1);
+      filter.fecha = { $gte: ayer, $lte: hoy };
     }
 
     // Para filtrar por nombre (que está en otra colección), primero buscamos usuarios
@@ -187,6 +194,45 @@ exports.getFaltantesHoy = async (req, res) => {
     });
   } catch (error) {
     console.error('Error al obtener faltantes:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getFaltantesAutoevaluacionHoy = async (req, res) => {
+  try {
+    const { inicio, fin } = getRangoHoy();
+
+    // 1. Buscar quiénes ya hicieron la autoevaluación HOY
+    const autoevaluacionesHoy = await Autoevaluacion.find({
+      fechaevaluacion: { $gte: inicio, $lte: fin },
+      completada: 'SI'
+    });
+
+    const idsQueEvaluaron = autoevaluacionesHoy.map(a => a.usuarioid.toString());
+
+    // 2. Buscar usuarios activos (rol USER) que NO están en esa lista
+    const queryFaltante = await Usuario.find({
+      rol: 'USER',
+      activo: 'SI',
+      _id: { $nin: idsQueEvaluaron }
+    }).populate('areaid', 'nombre');
+
+    const faltantes = queryFaltante.map(u => ({
+      id: u._id,
+      nombre: u.nombre,
+      apellido: u.apellido,
+      correo: u.correo,
+      area: u.areaid ? u.areaid.nombre : '_'
+    }));
+
+    res.json({
+      ok: true,
+      faltantes: faltantes,
+      total: faltantes.length,
+      fecha: inicio.toISOString().split('T')[0]
+    });
+  } catch (error) {
+    console.error('Error al obtener faltantes autoevaluación:', error);
     res.status(500).json({ error: error.message });
   }
 };

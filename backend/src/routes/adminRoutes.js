@@ -10,4 +10,8 @@ router.post('/export-horas-sheets', verifyToken, verifyAdmin, adminController.ex
 
 router.get('/faltantes-hoy', verifyToken, verifyAdmin,
   adminController.getFaltantesHoy);
+
+router.get('/faltantes-autoevaluacion-hoy', verifyToken, verifyAdmin,
+  adminController.getFaltantesAutoevaluacionHoy);
+
 module.exports = router;

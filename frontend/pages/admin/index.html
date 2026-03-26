@@ -74,6 +74,27 @@
       </thead>
       <tbody id="tablaPuntajes"></tbody>
     </table>
+
+    <div style="margin-top: 40px; margin-bottom: 20px;">
+      <button id="btnVerFaltantesAutoevaluacion" class="btn-faltantes" style="background-color: #673ab7;">
+        📝 Ver quiénes no han realizado autoevaluación hoy
+      </button>
+    </div>
+
+    <div id="faltantesAutoevaluacionContainer" style="display: none; margin-bottom: 50px;">
+      <h2 id="tituloFaltantesAutoevaluacion">Faltantes de Autoevaluación</h2>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Apellido</th>
+            <th>Correo</th>
+            <th>Área</th>
+          </tr>
+        </thead>
+        <tbody id="tablaFaltantesAutoevaluacion"></tbody>
+      </table>
+    </div>
   </div>
   <!-- MODAL PARA EDITAR HORAS -->
   <div id="modalEditarHoras"

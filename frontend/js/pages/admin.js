@@ -215,6 +215,13 @@ if (btnVerFaltantes) {
     const tbody = document.getElementById('tablaFaltantes');
     const titulo = document.getElementById('tituloFaltantes');
 
+    // 🛡️ MEJORA: Funcionalidad Toggle (Mostrar/Ocultar)
+    if (container.style.display === 'block') {
+      container.style.display = 'none';
+      btnVerFaltantes.textContent = 'Ver quiénes no han marcado entrada hoy';
+      return;
+    }
+
     try {
       btnVerFaltantes.textContent = 'Cargando...';
       btnVerFaltantes.disabled = true;
@@ -244,12 +251,71 @@ if (btnVerFaltantes) {
       }
 
       container.style.display = 'block';
+      btnVerFaltantes.textContent = 'Ocultar lista de faltantes';
     } catch (error) {
       console.error('Error cargar faltantes:', error);
       alert('Error al cargar faltantes: ' + error.message);
-    } finally {
       btnVerFaltantes.textContent = 'Ver quiénes no han marcado entrada hoy';
+    } finally {
       btnVerFaltantes.disabled = false;
+    }
+  });
+}
+
+const btnVerFaltantesAutoevaluacion = document.getElementById('btnVerFaltantesAutoevaluacion');
+if (btnVerFaltantesAutoevaluacion) {
+  btnVerFaltantesAutoevaluacion.addEventListener('click', async () => {
+    const token = localStorage.getItem('token');
+    const container = document.getElementById('faltantesAutoevaluacionContainer');
+    const tbody = document.getElementById('tablaFaltantesAutoevaluacion');
+    const titulo = document.getElementById('tituloFaltantesAutoevaluacion');
+
+    // 🛡️ MEJORA: Funcionalidad Toggle (Mostrar/Ocultar)
+    if (container.style.display === 'block') {
+      container.style.display = 'none';
+      btnVerFaltantesAutoevaluacion.textContent = '📝 Ver quiénes no han realizado autoevaluación hoy';
+      return;
+    }
+
+    try {
+      btnVerFaltantesAutoevaluacion.textContent = 'Cargando...';
+      btnVerFaltantesAutoevaluacion.disabled = true;
+
+      const res = await axios.get('/api/admin/faltantes-autoevaluacion-hoy', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const { faltantes, total, fecha } = res.data;
+
+      titulo.textContent = `Faltantes de Autoevaluación del ${fecha} (Total: ${total})`;
+      tbody.innerHTML = '';
+
+      if (total === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">✅ Todos han realizado su autoevaluación hoy</td></tr>';
+      } else {
+        faltantes.forEach(f => {
+          tbody.innerHTML += `
+            <tr>
+              <td>${f.nombre}</td>
+              <td>${f.apellido || '—'}</td>
+              <td>${f.correo}</td>
+              <td>${f.area || '—'}</td>
+            </tr>
+          `;
+        });
+      }
+
+      container.style.display = 'block';
+      btnVerFaltantesAutoevaluacion.textContent = 'Ocultar lista de autoevaluaciones';
+      
+      // Scroll suave hacia la nueva sección
+      container.scrollIntoView({ behavior: 'smooth' });
+    } catch (error) {
+      console.error('Error cargar faltantes autoevaluación:', error);
+      alert('Error al cargar faltantes de autoevaluación: ' + error.message);
+      btnVerFaltantesAutoevaluacion.textContent = '📝 Ver quiénes no han realizado autoevaluación hoy';
+    } finally {
+      btnVerFaltantesAutoevaluacion.disabled = false;
     }
   });
 }
