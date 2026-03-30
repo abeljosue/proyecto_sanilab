@@ -62,6 +62,23 @@ async function cargarHoras() {
   const fechaDesde = document.getElementById('fechaDesde').value;
   const fechaHasta = document.getElementById('fechaHasta').value;
 
+  // 🛡️ MEJORA: Validar si el usuario es el Gerente (Solo Lectura)
+  let esGerente = false;
+  if (token) {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      if (payload.correo === 'gerente@sanilab.com') {
+        esGerente = true;
+      }
+    } catch (e) { }
+  }
+
+  // 🛡️ MEJORA: Ocultar el Header de Acciones si es Gerente
+  const thAcciones = document.getElementById('thAcciones');
+  if (thAcciones) {
+    thAcciones.style.display = esGerente ? 'none' : '';
+  }
+
   const params = {};
   if (nombre) params.nombre = nombre;
   if (fechaDesde) params.fechaDesde = fechaDesde;
@@ -96,6 +113,15 @@ async function cargarHoras() {
       // Insignia alerta roja / naranja para que impacte visualmente
       const alarmaSalida = isAuto ? ` <span style="background:#e65100; color:white; font-size:10px; padding:2px 4px; border-radius:3px; margin-left:3px; font-weight:bold;">⚠️ Auto</span>` : '';
 
+      // Solo mostrar celda de editar si NO es gerente
+      const celdaAcciones = !esGerente ? `
+          <td>
+            <button class="btn-editar" style="cursor:pointer; padding:5px 10px; background:#ff9800; color:white; border:none; border-radius:4px;" 
+                    onclick="abrirModalEdicion('${row._id}', '${row.nombre}', '${row.horaentrada || ''}', '${row.horasalida || ''}')">
+              ✏️ Editar
+            </button>
+          </td>` : '';
+
       tbody.innerHTML += `
         <tr style="${resalteBg}">
           <td><strong>${row.nombre}</strong></td>
@@ -105,12 +131,7 @@ async function cargarHoras() {
           <td>${horaEntrada}</td>
           <td style="${isAuto ? 'color:#e65100; font-weight:bold;' : ''}">${horaSalida}${alarmaSalida}</td>
           <td><strong>${totalHoras}</strong></td>
-          <td>
-            <button class="btn-editar" style="cursor:pointer; padding:5px 10px; background:#ff9800; color:white; border:none; border-radius:4px;" 
-                    onclick="abrirModalEdicion('${row._id}', '${row.nombre}', '${row.horaentrada || ''}', '${row.horasalida || ''}')">
-              ✏️ Editar
-            </button>
-          </td>
+          ${celdaAcciones}
         </tr>
       `;
 

@@ -29,6 +29,16 @@ Se ha añadido una herramienta estratégica para el seguimiento del cumplimiento
 - **Scroll Suave**: Al consultar faltantes, la pantalla se desplaza suavemente hacia los resultados para mejorar la experiencia de usuario (UX).
 - **Consistencia de Datos**: Se actualizaron los controladores de `Ranking`, `Ruleta` y `Cumpleaños` para que todos hablen el mismo "idioma" de tiempo (UTC-5).
 
+## 5. Implementación de Perfil Gerencial (Solo Lectura)
+Para permitir la supervisión sin riesgo de alteración de datos, se ha creado un perfil especial:
+
+- **Usuario**: `gerente@sanilab.com`
+- **Acceso Directo**: Este usuario tiene permisos de Administrador para ver todo el panel pero tiene **restringida la edición**.
+- **Seguridad Multicapa**: 
+    - **Frontend**: Los botones de "Editar" desaparecen automáticamente cuando este usuario inicia sesión.
+    - **Backend**: Un middleware de seguridad (`verifyCanEdit`) bloquea cualquier intento de modificación por API, devolviendo un error 403.
+    - **Interfaz Limpia**: La columna de "ACCIONES" desaparece por completo para este perfil, eliminando ruido visual y reforzando el concepto de solo lectura.
+
 ---
 **Estado del Sistema:** ✅ Operativo y Blindado.
 **Zona Horaria:** America/Lima (UTC-5).

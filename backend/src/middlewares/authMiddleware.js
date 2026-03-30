@@ -34,4 +34,16 @@ const verifyAdmin = (req, res, next) => {
   next();
 };
 
-module.exports = { verifyToken, verifyAdmin };
+const verifyCanEdit = (req, res, next) => {
+  const emailRestringido = 'gerente@sanilab.com';
+  
+  if (req.user && req.user.correo === emailRestringido) {
+    return res.status(403).json({ 
+      error: 'Acceso restringido: Tu perfil es de solo lectura y no tienes permisos para editar registros.' 
+    });
+  }
+  
+  next();
+};
+
+module.exports = { verifyToken, verifyAdmin, verifyCanEdit };
