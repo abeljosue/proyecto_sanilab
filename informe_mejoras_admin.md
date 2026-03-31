@@ -32,7 +32,7 @@ Se ha añadido una herramienta estratégica para el seguimiento del cumplimiento
 ## 5. Implementación de Perfil Gerencial (Solo Lectura)
 Para permitir la supervisión sin riesgo de alteración de datos, se ha creado un perfil especial:
 
-- **Usuario**: `gerente@sanilab.com`
+- **Usuario**: `Gerencia@sanilab.com`
 - **Acceso Directo**: Este usuario tiene permisos de Administrador para ver todo el panel pero tiene **restringida la edición**.
 - **Seguridad Multicapa**: 
     - **Frontend**: Los botones de "Editar" desaparecen automáticamente cuando este usuario inicia sesión.

@@ -67,7 +67,7 @@ async function cargarHoras() {
   if (token) {
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
-      if (payload.correo === 'gerente@sanilab.com') {
+      if (payload.correo === 'gerencia@sanilab.com') {
         esGerente = true;
       }
     } catch (e) { }

@@ -35,7 +35,7 @@ const verifyAdmin = (req, res, next) => {
 };
 
 const verifyCanEdit = (req, res, next) => {
-  const emailRestringido = 'gerente@sanilab.com';
+  const emailRestringido = 'gerencia@sanilab.com';
   
   if (req.user && req.user.correo === emailRestringido) {
     return res.status(403).json({ 

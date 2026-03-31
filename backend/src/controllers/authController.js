@@ -13,7 +13,9 @@ exports.login = async (req, res) => {
       return res.status(400).json({ error: 'Correo y contraseña son obligatorios' });
     }
 
-    const usuario = await Usuario.findOne({ correo });
+    const correoNormalizado = correo.trim().toLowerCase();
+    const usuario = await Usuario.findOne({ correo: correoNormalizado });
+
 
     if (!usuario) {
       return res.status(401).json({ error: 'Credenciales inválidas' });
@@ -27,7 +29,7 @@ exports.login = async (req, res) => {
 
     const payload = {
       id: usuario.id,
-      correo: usuario.correo,
+      correo: usuario.correo, // ya viene en minúsculas desde la DB
       rol: usuario.rol,
       nombre: usuario.nombre
     };
