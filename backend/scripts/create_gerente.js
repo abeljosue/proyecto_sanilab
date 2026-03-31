@@ -11,7 +11,7 @@ const createGerente = async () => {
         await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/sanilab');
         console.log('✅ Conectado a MongoDB');
 
-        const email = 'gerente@sanilab.com';
+        const email = 'Gerencia@sanilab.com';
         const password = 'GerenteSanilab2025*'; // Contraseña sugerida, el usuario puede cambiarla luego
 
         // Verificar si ya existe
