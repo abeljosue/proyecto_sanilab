@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mi Perfil</title>
+  <title>Mi Perfil — Sanilab</title>
   <link rel="stylesheet" href="../../assets/css/perfil.css" />
   <link rel="icon" type="image/png" href="../../assets/images/Sanilab-favicon.png" />
   <link
@@ -13,50 +13,68 @@
   />
 </head>
 <body>
-  <button class="btn-edit-fondo" onclick="abrirModalFondos()" title="Personalizar fondo">
+
+  <!-- Botón flotante personalizar fondo -->
+  <button class="btn-edit-fondo" id="btnEditFondo" onclick="abrirModalFondos()" title="Personalizar fondo">
     <i class="fa-solid fa-palette"></i>
   </button>
 
   <div class="container">
     <a href="/pages/home/index.html" class="back-link">← Volver al inicio</a>
 
-    <div class="profile-header">
-      <div class="profile-avatar">
-        <i class="fa-solid fa-user-circle"></i>
-      </div>
+    <!-- HEADER PERFIL -->
+    <div class="profile-header" id="profileHeader">
+      <!-- Skeleton mientras carga -->
+      <div class="profile-avatar-wrap skeleton-avatar skeleton" id="avatarSkeleton"></div>
       <div class="profile-info">
-        <h1 id="profileName">Cargando...</h1>
-        <p id="profileRole">...</p>
-        <p id="profileArea">...</p>
+        <div class="skeleton skeleton-text-lg" id="nameSkeleton"></div>
+        <div class="skeleton skeleton-text-sm" id="roleSkeleton"></div>
+        <div class="skeleton skeleton-text-sm" id="areaSkeleton"></div>
+      </div>
+
+      <!-- Avatar dinámico con inicial (oculto hasta que cargue) -->
+      <div class="profile-avatar-wrap hidden" id="avatarReal">
+        <div class="avatar-inicial" id="avatarInicial"></div>
+      </div>
+      <div class="profile-info hidden" id="profileInfoReal">
+        <h1 id="profileName">—</h1>
+        <p id="profileEmail" class="profile-email"><i class="fa-solid fa-envelope"></i> <span></span></p>
+        <p id="profileRole" class="badge-rol"><i class="fa-solid fa-id-badge"></i> <span></span></p>
+        <p id="profileArea"><i class="fa-solid fa-building"></i> <span></span></p>
       </div>
     </div>
 
+    <!-- STATS -->
     <div class="stats-grid">
-      <div class="stat-card">
+      <div class="stat-card" id="cardHoras">
+        <div class="skeleton skeleton-stat hidden" id="skHoras"></div>
         <div class="stat-icon">🕐</div>
-        <div class="stat-value" id="statHoras">0</div>
+        <div class="stat-value" id="statHoras">—</div>
         <div class="stat-label">Horas trabajadas</div>
       </div>
 
-      <div class="stat-card">
+      <div class="stat-card" id="cardPromedio">
+        <div class="skeleton skeleton-stat hidden" id="skPromedio"></div>
         <div class="stat-icon">⭐</div>
-        <div class="stat-value" id="statPromedio">0</div>
+        <div class="stat-value" id="statPromedio">—</div>
         <div class="stat-label">Evaluación promedio</div>
       </div>
 
-      <div class="stat-card">
+      <div class="stat-card" id="cardTardanzas">
+        <div class="skeleton skeleton-stat hidden" id="skTardanzas"></div>
         <div class="stat-icon">⏰</div>
-        <div class="stat-value" id="statTardanzas">0</div>
+        <div class="stat-value" id="statTardanzas">—</div>
         <div class="stat-label">Minutos de tardanza</div>
       </div>
     </div>
 
+    <!-- HORARIOS -->
     <div class="profile-section">
       <h2><i class="fa-solid fa-clock"></i> Mis Horarios</h2>
-      <div id="horariosContainer" class="horarios-grid">
-      </div>
+      <div id="horariosContainer" class="horarios-grid"></div>
     </div>
 
+    <!-- AUTOEVALUACIONES -->
     <div class="profile-section">
       <h2><i class="fa-solid fa-chart-line"></i> Mis Autoevaluaciones</h2>
       <div class="table-container">
@@ -74,11 +92,12 @@
       </div>
     </div>
 
+    <!-- EVALUACIONES DE COMPAÑEROS -->
     <div class="profile-section">
       <h2><i class="fa-solid fa-users"></i> Evaluaciones Recibidas de Compañeros</h2>
       <div class="promedio-eval">
         <span>Promedio general:</span>
-        <span id="promedioGeneral" class="promedio-valor">0/25</span>
+        <span id="promedioGeneral" class="promedio-valor">—/25</span>
       </div>
       <div class="table-container">
         <table class="data-table">
@@ -97,44 +116,57 @@
     </div>
   </div>
 
+  <!-- MODAL PERSONALIZAR FONDO -->
   <div id="modalFondos" class="modal-fondos hidden">
     <div class="modal-fondos__backdrop" onclick="cerrarModalFondos()"></div>
     <div class="modal-fondos__content">
       <h2>🎨 Personaliza tu fondo</h2>
       <p>Sube una imagen de fondo para tu perfil (máx. 5MB)</p>
-      
+
       <div class="upload-area" id="uploadArea">
         <i class="fa-solid fa-cloud-arrow-up"></i>
         <p>Haz clic o arrastra una imagen aquí</p>
-        <input type="file" id="inputFondo" accept="image/*" style="display: none;">
+      </div>
+      <input type="file" id="inputFondo" accept="image/*" style="display: none;">
+
+      <!-- Barra de progreso -->
+      <div id="uploadProgress" class="upload-progress hidden">
+        <div class="upload-progress__bar" id="progressBar"></div>
+        <span id="progressText">Subiendo...</span>
       </div>
 
       <div id="previewArea" style="display: none; margin-top: 15px;">
         <p style="font-size: 0.9em; color: #636e72; margin-bottom: 10px;">Vista previa:</p>
-        <img id="imagenPreview" style="width: 100%; max-height: 200px; object-fit: cover; border-radius: 12px; border: 2px solid #e5e7eb;">
+        <img id="imagenPreview" style="width: 100%; max-height: 200px; object-fit: cover; border-radius: 12px; border: 2px solid #22c55e;">
       </div>
-      
-      <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+
+      <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
         <button class="btn btn-secondary" onclick="cerrarModalFondos()">Cancelar</button>
-        <button class="btn btn-primary" id="btnSubirFondo" onclick="subirFondo()" disabled>Guardar fondo</button>
+        <button class="btn btn-danger" id="btnQuitarFondo" onclick="eliminarFondo()">
+          <i class="fa-solid fa-trash"></i> Quitar fondo
+        </button>
+        <button class="btn btn-primary" id="btnSubirFondo" onclick="subirFondo()" disabled>
+          <i class="fa-solid fa-floppy-disk"></i> Guardar fondo
+        </button>
       </div>
     </div>
   </div>
 
+  <!-- MODAL ÉXITO -->
   <div id="modalExito" class="modal-exito hidden">
-  <div class="modal-exito__backdrop"></div>
-  <div class="modal-exito__content">
-    <div class="modal-exito__checkmark">
-      <svg viewBox="0 0 52 52">
-       <circle cx="26" cy="26" r="25" fill="none"></circle>
-        <path d="M14 27 L22 35 L38 19"></path>
-      </svg>
+    <div class="modal-exito__backdrop"></div>
+    <div class="modal-exito__content">
+      <div class="modal-exito__checkmark">
+        <svg viewBox="0 0 52 52">
+          <circle cx="26" cy="26" r="25" fill="none"></circle>
+          <path d="M14 27 L22 35 L38 19"></path>
+        </svg>
+      </div>
+      <h2 id="modalExitoTitulo">¡Fondo actualizado!</h2>
+      <p id="modalExitoMsg">Tu perfil luce increíble 🎨</p>
+      <button class="btn-modal-close" onclick="cerrarModalExito()">Aceptar</button>
     </div>
-    <h2>¡Fondo actualizado!</h2>
-    <p>Tu perfil luce increíble 🎨</p>
-    <button class="btn-modal-close" onclick="cerrarModalExito()">Aceptar</button>
   </div>
-</div>
 
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script src="../../js/pages/perfil.js"></script>
