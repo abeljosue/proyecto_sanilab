@@ -43,6 +43,10 @@ app.use(express.static(frontendPath, {
   index: false
 }));
 
+// Servir imágenes de fondos guardadas localmente (fallback sin Cloudinary)
+const uploadsPath = path.join(__dirname, '..', 'uploads');
+app.use('/uploads', express.static(uploadsPath));
+
 app.get('/', (req, res) => {
   const indexPath = path.join(frontendPath, 'index.html');
   console.log('Attempting to serve:', indexPath);

@@ -46,6 +46,10 @@ const usuarioSchema = new mongoose.Schema({
     type: String, // Manteniendo compatibilidad con "SI"/"NO" del SQL original
     enum: ['SI', 'NO'],
     default: 'SI'
+  },
+  fondo_perfil: {
+    type: String,
+    default: null
   }
 }, {
   timestamps: { createdAt: 'fecha_creacion', updatedAt: 'fecha_actualizacion' },
