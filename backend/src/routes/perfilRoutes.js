@@ -95,8 +95,15 @@ router.post('/subir-fondo', upload.single('fondoImagen'), async (req, res) => {
       return res.status(400).json({ error: 'No se recibió ninguna imagen' });
     }
 
-    const rutaFondo = req.file.path;
-    console.log('📸 Imagen subida a Cloudinary:', rutaFondo);
+    let rutaFondo = req.file.path;
+
+    // Si es almacenamiento local (no Cloudinary), convertimos ruta de disco a URL relativa
+    if (!rutaFondo.startsWith('http')) {
+      const filename = path.basename(rutaFondo);
+      rutaFondo = `/uploads/fondos/${filename}`;
+    }
+
+    console.log('📸 Imagen procesada:', rutaFondo);
 
     await Usuario.findByIdAndUpdate(usuarioId, { fondo_perfil: rutaFondo });
 
@@ -108,6 +115,17 @@ router.post('/subir-fondo', upload.single('fondoImagen'), async (req, res) => {
 
   } catch (error) {
     console.error('Error subir fondo:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/mi-fondo', async (req, res) => {
+  try {
+    const usuarioId = req.user.id;
+    await Usuario.findByIdAndUpdate(usuarioId, { fondo_perfil: null });
+    res.json({ ok: true, mensaje: 'Fondo eliminado correctamente' });
+  } catch (error) {
+    console.error('Error eliminar fondo:', error);
     res.status(500).json({ error: error.message });
   }
 });
