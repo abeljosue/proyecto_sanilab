@@ -80,10 +80,17 @@ asistenciaController.iniciarAutoCierre();
 console.log('⏱️ Auto-Cierre de jornadas iniciado...');
 
 
+process.on('uncaughtException', (err) => {
+  console.error('🔥 Uncaught Exception (Fallo Crítico):', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🔥 Unhandled Rejection (Promesa sin catch):', promise, 'razón:', reason);
+});
+
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Server running on port ${PORT} (0.0.0.0)`);
   console.log(`📁 Frontend: ${frontendPath}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🍃 Database: MongoDB`);
