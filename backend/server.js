@@ -3,9 +3,9 @@ require('dotenv').config();
 const chatbotRoutes = require('./src/routes/chatbotRoutes');
 const keepAlive = require('./src/utils/keepAlive');
 
-console.log('🧪 TEST - OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'OK' : 'MISSING');
+console.log('🧪 TEST - OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'CONFIGURADO ✅' : 'FALTA ❌');
 console.log('🧪 TEST - GOOGLE_SHEETS_ID:', process.env.GOOGLE_SHEETS_ID);
-console.log('🧪 TEST - DATABASE_URL:', process.env.DATABASE_URL ? 'Existe' : 'NO EXISTE');
+console.log('🧪 TEST - DATABASE (MONGO_URI/DATABASE_URL):', (process.env.MONGO_URI || process.env.DATABASE_URL) ? 'Configurada ✅' : 'FALTA ❌');
 
 const express = require('express');
 const cors = require('cors');

@@ -3,16 +3,18 @@ const mongoose = require('mongoose');
 
 const connectDB = async () => {
     try {
-        const conn = await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/sistema_autoevaluaciones', {
-            // Options are no longer needed in Mongoose 6+, but keeping for compatibility if using older versions
-            // useNewUrlParser: true,
-            // useUnifiedTopology: true,
-        });
+        // Priorizar MONGO_URI, fallback a DATABASE_URL (común en Render/Heroku)
+        const mongoURI = process.env.MONGO_URI || process.env.DATABASE_URL || 'mongodb://localhost:27017/sistema_autoevaluaciones';
+        
+        const conn = await mongoose.connect(mongoURI);
 
         console.log(`🍃 MongoDB Connected: ${conn.connection.host}`);
     } catch (error) {
-        console.error(`❌ Error: ${error.message}`);
-        process.exit(1);
+        console.error(`❌ Error al conectar a MongoDB: ${error.message}`);
+        // No salimos si estamos en desarrollo para permitir que el servidor de logs/frontend funcione
+        if (process.env.NODE_ENV === 'production') {
+            process.exit(1);
+        }
     }
 };
 

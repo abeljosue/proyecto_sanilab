@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-require('dotenv').config({ path: path.join(__dirname, '../../../.env') });
+// require('dotenv').config(); // Ya se carga en server.js, evitamos rutas relativas frágiles
 
 const multer = require('multer');
 
@@ -53,9 +53,15 @@ if (tieneCloudinary) {
 
 } else {
   // ---- Modo disco local ----
-  const UPLOAD_DIR = path.join(__dirname, '../../../uploads/fondos');
-  if (!fs.existsSync(UPLOAD_DIR)) {
-    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  const UPLOAD_DIR = path.join(__dirname, '..', '..', '..', 'uploads', 'fondos');
+  try {
+    if (!fs.existsSync(UPLOAD_DIR)) {
+      console.log('📂 Creando directorio de fondos local...');
+      fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    }
+  } catch (error) {
+    console.warn('⚠️ No se pudo crear el directorio de subidas local:', error.message);
+    console.warn('💡 Esto es normal en Render si no tienes Cloudinary configurado.');
   }
 
   const storage = multer.diskStorage({
