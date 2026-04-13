@@ -24,15 +24,19 @@ exports.getAllRankings = async (req, res) => {
 
     const rankings = await RankingQuincenal.find(query)
       .sort({ posicion: 1 })
-      .populate('usuarioid', 'nombre apellido'); // Traer nombre del usuario
+      .populate({
+        path: 'usuarioid',
+        select: 'nombre apellido archivado',
+        match: { archivado: { $ne: true } }
+      }); 
 
     // Mapear para estructura plana esperada por frontend
-    const result = rankings.map(r => ({
+    const result = rankings
+      .filter(r => r.usuarioid !== null)
+      .map(r => ({
       id: r.id,
-      usuarioid: r.usuarioid?._id,
-      nombre: r.usuarioid 
-        ? `${r.usuarioid.nombre.split(' ')[0]} ${r.usuarioid.apellido ? r.usuarioid.apellido.split(' ')[0] : ''}`.trim()
-        : 'Usuario eliminado',
+      usuarioid: r.usuarioid._id,
+      nombre: `${r.usuarioid.nombre.split(' ')[0]} ${r.usuarioid.apellido ? r.usuarioid.apellido.split(' ')[0] : ''}`.trim(),
       quincena: r.quincena,
       puntajetotal: r.puntajetotal,
       posicion: r.posicion,
@@ -62,6 +66,10 @@ exports.getRankingById = async (req, res) => {
         : 'Desconocido'
     };
 
+    if (ranking.usuarioid && ranking.usuarioid.archivado) {
+       return res.status(404).json({ error: 'Ranking no disponible (Usuario restringido)' });
+    }
+
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -77,10 +85,14 @@ exports.recalcularRanking = async (req, res) => {
     // 1. Borrar ranking anterior de esa quincena
     await RankingQuincenal.deleteMany({ quincena });
 
+    // 1.5 Obtener IDs de usuarios NO archivados para no asignarles posición
+    const usuariosActivos = await Usuario.find({ archivado: { $ne: true } }).select('_id');
+    const idsActivos = usuariosActivos.map(u => u._id);
+
     // 2. Agrupar puntajes de autoevaluaciones
     // Aggregate en Autoevaluacion
     const puntajes = await Autoevaluacion.aggregate([
-      { $match: { quincena: quincena, completada: 'SI' } },
+      { $match: { quincena: quincena, completada: 'SI', usuarioid: { $in: idsActivos } } },
       {
         $group: {
           _id: "$usuarioid", // Agrupar por usuario

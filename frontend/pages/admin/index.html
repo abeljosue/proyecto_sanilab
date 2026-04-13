@@ -27,6 +27,9 @@
       <button id="btnVerFaltantes" class="btn-faltantes">
         📋 Ver quiénes no han marcado entrada hoy
       </button>
+      <button id="btnToggleArchivadosEntrada" class="btn-archivados-toggle" style="display:none; margin-left:10px; padding: 10px 15px; border-radius: 5px; border: 1px solid #4caf50; background: transparent; color: #4caf50; cursor: pointer;">
+        👁️ Mostrar Ocultos
+      </button>
     </div>
 
     <div id="faltantesContainer" style="display: none;">
@@ -39,6 +42,7 @@
             <th>Apellido</th>
             <th>Correo</th>
             <th>Área</th>
+            <th>Acción</th>
           </tr>
         </thead>
         <tbody id="tablaFaltantes"></tbody>
@@ -79,6 +83,9 @@
       <button id="btnVerFaltantesAutoevaluacion" class="btn-faltantes" style="background-color: #673ab7;">
         📝 Ver quiénes no han realizado autoevaluación hoy
       </button>
+      <button id="btnToggleArchivadosAutoeval" class="btn-archivados-toggle" style="display:none; margin-left:10px; padding: 10px 15px; border-radius: 5px; border: 1px solid #673ab7; background: transparent; color: #673ab7; cursor: pointer;">
+        👁️ Mostrar Ocultos
+      </button>
     </div>
 
     <div id="faltantesAutoevaluacionContainer" style="display: none; margin-bottom: 50px;">
@@ -90,6 +97,7 @@
             <th>Apellido</th>
             <th>Correo</th>
             <th>Área</th>
+            <th>Acción</th>
           </tr>
         </thead>
         <tbody id="tablaFaltantesAutoevaluacion"></tbody>

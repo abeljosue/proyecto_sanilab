@@ -14,4 +14,6 @@ router.get('/faltantes-hoy', verifyToken, verifyAdmin,
 router.get('/faltantes-autoevaluacion-hoy', verifyToken, verifyAdmin,
   adminController.getFaltantesAutoevaluacionHoy);
 
+router.put('/usuarios/:id/archivar', verifyToken, verifyAdmin, adminController.toggleArchivarUsuario);
+
 module.exports = router;

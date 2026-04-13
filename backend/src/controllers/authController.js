@@ -16,9 +16,12 @@ exports.login = async (req, res) => {
     const correoNormalizado = correo.trim().toLowerCase();
     const usuario = await Usuario.findOne({ correo: correoNormalizado });
 
-
     if (!usuario) {
       return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
+
+    if (usuario.archivado) {
+      return res.status(403).json({ error: 'Usuario restringido o bloqueado.' });
     }
 
     const isMatch = await bcrypt.compare(password, usuario.passwordhash);

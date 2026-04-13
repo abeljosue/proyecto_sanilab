@@ -50,6 +50,10 @@ const usuarioSchema = new mongoose.Schema({
   fondo_perfil: {
     type: String,
     default: null
+  },
+  archivado: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: { createdAt: 'fecha_creacion', updatedAt: 'fecha_actualizacion' },

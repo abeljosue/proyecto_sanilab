@@ -8,10 +8,10 @@ console.log('🧪 TEST - GOOGLE_SHEETS_ID:', process.env.GOOGLE_SHEETS_ID);
 console.log('🧪 TEST - DATABASE (MONGO_URI/DATABASE_URL):', (process.env.MONGO_URI || process.env.DATABASE_URL) ? 'Configurada ✅' : 'FALTA ❌');
 
 const express = require('express');
-const cors = require('cors');
 const fs = require('fs');
+const { initApp, getCors, getStaticOptions } = require('../anotaciones/core_dependencies');
 
-const app = express();
+const app = initApp();
 const routes = require('./src/routes');
 const adminRoutes = require('./src/routes/adminRoutes');
 const cumpleanosRoutes = require('./src/routes/cumpleanosRoutes');
@@ -31,17 +31,11 @@ const connectDB = require('./config/dbMongo');
 // Conectar a MongoDB
 connectDB();
 
-app.use(cors({
-  origin: '*',  // Lo ajustaremos cuando tengamos la URL de Vercel
-  credentials: true
-}));
+app.use(getCors());
 
 app.use(express.json());
 
-app.use(express.static(frontendPath, {
-  dotfiles: 'ignore',
-  index: false
-}));
+app.use(express.static(frontendPath, getStaticOptions()));
 
 // Servir imágenes de fondos guardadas localmente (fallback sin Cloudinary)
 const uploadsPath = path.join(__dirname, '..', 'uploads');

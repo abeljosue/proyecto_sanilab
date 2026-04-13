@@ -214,10 +214,7 @@ async function exportarAGoogleSheets() {
         showConfirmButton: true,
         confirmButtonText: 'Cerrar'
       });
-    } else {
-      throw new Error(data.error);
     }
-
   } catch (error) {
     console.error('Error:', error);
     Swal.fire({
@@ -228,7 +225,70 @@ async function exportarAGoogleSheets() {
   }
 }
 
+// ------------------------------------
+// VARIABLES DE ESTADO PARA ARCHIVADOS
+// ------------------------------------
+let mostrandoArchivadosFaltantes = false;
+let mostrandoArchivadosAutoeval = false;
+
+window.archivarUsuario = async function(id) {
+  try {
+    const token = localStorage.getItem('token');
+    
+    // Mostrar loading
+    Swal.fire({ title: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    
+    const res = await axios.put(`/api/admin/usuarios/${id}/archivar`, {}, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    if (res.data.success) {
+      Swal.fire({
+        icon: 'success',
+        title: 'Éxito',
+        text: res.data.message,
+        timer: 1500,
+        showConfirmButton: false
+      });
+      
+      // Recargar las listas si están abiertas
+      const containerF = document.getElementById('faltantesContainer');
+      if(containerF.style.display === 'block'){
+        document.getElementById('btnVerFaltantes').click(); // Cierra
+        setTimeout(() => document.getElementById('btnVerFaltantes').click(), 50); // Abre de nuevo
+      }
+      
+      const containerA = document.getElementById('faltantesAutoevaluacionContainer');
+      if(containerA.style.display === 'block'){
+        document.getElementById('btnVerFaltantesAutoevaluacion').click(); // Cierra
+        setTimeout(() => document.getElementById('btnVerFaltantesAutoevaluacion').click(), 50); // Abre de nuevo
+      }
+
+      // Actualizar automáticamente panel acumulado de puntajes y horas sin recargar la página
+      if (typeof cargarPuntajes === 'function') cargarPuntajes();
+      if (typeof cargarHoras === 'function') cargarHoras();
+    }
+  } catch (error) {
+    Swal.fire('Error', error.response?.data?.error || error.message, 'error');
+  }
+};
+
 const btnVerFaltantes = document.getElementById('btnVerFaltantes');
+const btnToggleArchivadosEntrada = document.getElementById('btnToggleArchivadosEntrada');
+
+if (btnToggleArchivadosEntrada) {
+  btnToggleArchivadosEntrada.addEventListener('click', () => {
+    mostrandoArchivadosFaltantes = !mostrandoArchivadosFaltantes;
+    btnToggleArchivadosEntrada.innerHTML = mostrandoArchivadosFaltantes ? '👁️ Ocultar Archivados' : '👁️ Mostrar Ocultos';
+    // Forzar recarga si está abierto
+    const container = document.getElementById('faltantesContainer');
+    if(container.style.display === 'block'){
+       document.getElementById('btnVerFaltantes').click();
+       setTimeout(() => document.getElementById('btnVerFaltantes').click(), 50);
+    }
+  });
+}
+
 if (btnVerFaltantes) {
   btnVerFaltantes.addEventListener('click', async () => {
     const token = localStorage.getItem('token');
@@ -236,10 +296,10 @@ if (btnVerFaltantes) {
     const tbody = document.getElementById('tablaFaltantes');
     const titulo = document.getElementById('tituloFaltantes');
 
-    // 🛡️ MEJORA: Funcionalidad Toggle (Mostrar/Ocultar)
     if (container.style.display === 'block') {
       container.style.display = 'none';
       btnVerFaltantes.textContent = 'Ver quiénes no han marcado entrada hoy';
+      if(btnToggleArchivadosEntrada) btnToggleArchivadosEntrada.style.display = 'none';
       return;
     }
 
@@ -247,25 +307,32 @@ if (btnVerFaltantes) {
       btnVerFaltantes.textContent = 'Cargando...';
       btnVerFaltantes.disabled = true;
 
-      const res = await axios.get('/api/admin/faltantes-hoy', {
+      const res = await axios.get(`/api/admin/faltantes-hoy?mostrarArchivados=${mostrandoArchivadosFaltantes}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       const { faltantes, total, fecha } = res.data;
 
-      titulo.textContent = `Faltantes del ${fecha} (Total: ${total})`;
+      titulo.textContent = `Faltantes del ${fecha} (Total: ${total})${mostrandoArchivadosFaltantes ? ' [MODO ARCHIVADOS]' : ''}`;
       tbody.innerHTML = '';
 
       if (total === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">✅ Todos han marcado entrada hoy</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">✅ Todos han marcado entrada hoy o no hay registros.</td></tr>';
       } else {
         faltantes.forEach(f => {
+          const btnText = f.archivado ? 'Restaurar' : 'Archivar';
+          const btnColor = f.archivado ? '#4caf50' : '#f44336';
           tbody.innerHTML += `
-            <tr>
+            <tr style="opacity: ${f.archivado ? '0.6' : '1'};">
               <td>${f.nombre}</td>
               <td>${f.apellido || '—'}</td>
               <td>${f.correo}</td>
               <td>${f.area || '—'}</td>
+              <td>
+                <button class="btn-archivar" style="background:${btnColor}" onclick="archivarUsuario('${f.id}')">
+                  ${f.archivado ? '🔙' : '🗃️'} ${btnText}
+                </button>
+              </td>
             </tr>
           `;
         });
@@ -273,6 +340,7 @@ if (btnVerFaltantes) {
 
       container.style.display = 'block';
       btnVerFaltantes.textContent = 'Ocultar lista de faltantes';
+      if(btnToggleArchivadosEntrada) btnToggleArchivadosEntrada.style.display = 'inline-block';
     } catch (error) {
       console.error('Error cargar faltantes:', error);
       alert('Error al cargar faltantes: ' + error.message);
@@ -284,6 +352,20 @@ if (btnVerFaltantes) {
 }
 
 const btnVerFaltantesAutoevaluacion = document.getElementById('btnVerFaltantesAutoevaluacion');
+const btnToggleArchivadosAutoeval = document.getElementById('btnToggleArchivadosAutoeval');
+
+if (btnToggleArchivadosAutoeval) {
+  btnToggleArchivadosAutoeval.addEventListener('click', () => {
+    mostrandoArchivadosAutoeval = !mostrandoArchivadosAutoeval;
+    btnToggleArchivadosAutoeval.innerHTML = mostrandoArchivadosAutoeval ? '👁️ Ocultar Archivados' : '👁️ Mostrar Ocultos';
+    const container = document.getElementById('faltantesAutoevaluacionContainer');
+    if(container.style.display === 'block'){
+       document.getElementById('btnVerFaltantesAutoevaluacion').click();
+       setTimeout(() => document.getElementById('btnVerFaltantesAutoevaluacion').click(), 50);
+    }
+  });
+}
+
 if (btnVerFaltantesAutoevaluacion) {
   btnVerFaltantesAutoevaluacion.addEventListener('click', async () => {
     const token = localStorage.getItem('token');
@@ -291,10 +373,10 @@ if (btnVerFaltantesAutoevaluacion) {
     const tbody = document.getElementById('tablaFaltantesAutoevaluacion');
     const titulo = document.getElementById('tituloFaltantesAutoevaluacion');
 
-    // 🛡️ MEJORA: Funcionalidad Toggle (Mostrar/Ocultar)
     if (container.style.display === 'block') {
       container.style.display = 'none';
       btnVerFaltantesAutoevaluacion.textContent = '📝 Ver quiénes no han realizado autoevaluación hoy';
+      if(btnToggleArchivadosAutoeval) btnToggleArchivadosAutoeval.style.display = 'none';
       return;
     }
 
@@ -302,25 +384,32 @@ if (btnVerFaltantesAutoevaluacion) {
       btnVerFaltantesAutoevaluacion.textContent = 'Cargando...';
       btnVerFaltantesAutoevaluacion.disabled = true;
 
-      const res = await axios.get('/api/admin/faltantes-autoevaluacion-hoy', {
+      const res = await axios.get(`/api/admin/faltantes-autoevaluacion-hoy?mostrarArchivados=${mostrandoArchivadosAutoeval}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       const { faltantes, total, fecha } = res.data;
 
-      titulo.textContent = `Faltantes de Autoevaluación del ${fecha} (Total: ${total})`;
+      titulo.textContent = `Faltantes de Autoevaluación del ${fecha} (Total: ${total})${mostrandoArchivadosAutoeval ? ' [MODO ARCHIVADOS]' : ''}`;
       tbody.innerHTML = '';
 
       if (total === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">✅ Todos han realizado su autoevaluación hoy</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">✅ Todos han realizado su autoevaluación hoy</td></tr>';
       } else {
         faltantes.forEach(f => {
+          const btnText = f.archivado ? 'Restaurar' : 'Archivar';
+          const btnColor = f.archivado ? '#4caf50' : '#f44336';
           tbody.innerHTML += `
-            <tr>
+            <tr style="opacity: ${f.archivado ? '0.6' : '1'};">
               <td>${f.nombre}</td>
               <td>${f.apellido || '—'}</td>
               <td>${f.correo}</td>
               <td>${f.area || '—'}</td>
+              <td>
+                <button class="btn-archivar" style="background:${btnColor}" onclick="archivarUsuario('${f.id}')">
+                  ${f.archivado ? '🔙' : '🗃️'} ${btnText}
+                </button>
+              </td>
             </tr>
           `;
         });
@@ -328,8 +417,8 @@ if (btnVerFaltantesAutoevaluacion) {
 
       container.style.display = 'block';
       btnVerFaltantesAutoevaluacion.textContent = 'Ocultar lista de autoevaluaciones';
+      if(btnToggleArchivadosAutoeval) btnToggleArchivadosAutoeval.style.display = 'inline-block';
       
-      // Scroll suave hacia la nueva sección
       container.scrollIntoView({ behavior: 'smooth' });
     } catch (error) {
       console.error('Error cargar faltantes autoevaluación:', error);

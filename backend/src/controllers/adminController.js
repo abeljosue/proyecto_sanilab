@@ -98,11 +98,17 @@ exports.getPuntajes = async (req, res) => {
     }
 
     const rankings = await RankingQuincenal.find(filter)
-      .populate('usuarioid', 'nombre')
+      .populate({
+        path: 'usuarioid',
+        select: 'nombre archivado',
+        match: { archivado: { $ne: true } }
+      })
       .sort({ puntajetotal: -1 });
 
-    const rows = rankings.map(r => ({
-      nombre: r.usuarioid ? r.usuarioid.nombre : 'Desconocido',
+    const rows = rankings
+      .filter(r => r.usuarioid !== null)
+      .map(r => ({
+      nombre: r.usuarioid.nombre,
       quincena: r.quincena,
       puntajetotal: r.puntajetotal,
       posicion: r.posicion
@@ -166,6 +172,7 @@ exports.getAllAsistencias = exports.getHoras; // O adaptar según necesidad
 exports.getFaltantesHoy = async (req, res) => {
   try {
     const fechaHoy = getFechaHoyMidnight();
+    const { mostrarArchivados } = req.query;
 
     const asistenciasHoy = await Asistencia.find({
       fecha: fechaHoy,
@@ -174,17 +181,26 @@ exports.getFaltantesHoy = async (req, res) => {
 
     const idsQueAsistieron = asistenciasHoy.map(a => a.usuarioid);
 
-    const queryFaltante = await Usuario.find({
+    let filter = {
       rol: 'USER',
       _id: { $nin: idsQueAsistieron }
-    }).populate('areaid', 'nombre');
+    };
+
+    if (mostrarArchivados === 'true') {
+      filter.archivado = true;
+    } else {
+      filter.archivado = { $ne: true };
+    }
+
+    const queryFaltante = await Usuario.find(filter).populate('areaid', 'nombre');
 
     const faltantes = queryFaltante.map(u => ({
       id: u._id,
       nombre: u.nombre,
       apellido: u.apellido,
       correo: u.correo,
-      area: u.areaid ? u.areaid.nombre : '_'
+      area: u.areaid ? u.areaid.nombre : '_',
+      archivado: u.archivado || false
     }));
     res.json({
       ok: true,
@@ -201,6 +217,7 @@ exports.getFaltantesHoy = async (req, res) => {
 exports.getFaltantesAutoevaluacionHoy = async (req, res) => {
   try {
     const { inicio, fin } = getRangoHoy();
+    const { mostrarArchivados } = req.query;
 
     // 1. Buscar quiénes ya hicieron la autoevaluación HOY
     const autoevaluacionesHoy = await Autoevaluacion.find({
@@ -210,19 +227,28 @@ exports.getFaltantesAutoevaluacionHoy = async (req, res) => {
 
     const idsQueEvaluaron = autoevaluacionesHoy.map(a => a.usuarioid.toString());
 
-    // 2. Buscar usuarios activos (rol USER) que NO están en esa lista
-    const queryFaltante = await Usuario.find({
+    let filter = {
       rol: 'USER',
       activo: 'SI',
       _id: { $nin: idsQueEvaluaron }
-    }).populate('areaid', 'nombre');
+    };
+
+    if (mostrarArchivados === 'true') {
+      filter.archivado = true;
+    } else {
+      filter.archivado = { $ne: true };
+    }
+
+    // 2. Buscar usuarios activos (rol USER) que NO están en esa lista
+    const queryFaltante = await Usuario.find(filter).populate('areaid', 'nombre');
 
     const faltantes = queryFaltante.map(u => ({
       id: u._id,
       nombre: u.nombre,
       apellido: u.apellido,
       correo: u.correo,
-      area: u.areaid ? u.areaid.nombre : '_'
+      area: u.areaid ? u.areaid.nombre : '_',
+      archivado: u.archivado || false
     }));
 
     res.json({
@@ -292,4 +318,32 @@ exports.updateHoras = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
+// ===================================
+// Función para Archivar/Restaurar
+// ===================================
+exports.toggleArchivarUsuario = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const usuario = await Usuario.findById(id);
+
+    if (!usuario) {
+      return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    }
+
+    // Toggle valor: Si era false pasa a true, si era true pasa a false
+    usuario.archivado = !usuario.archivado;
+    await usuario.save();
+
+    res.json({ 
+      success: true, 
+      message: usuario.archivado ? 'Usuario archivado/ocultado correctamente.' : 'Usuario restaurado correctamente.',
+      archivado: usuario.archivado
+    });
+  } catch (error) {
+    console.error('Error al archivar usuario:', error);
+    res.status(500).json({ success: false, error: 'Error del servidor' });
+  }
+};
+
 
