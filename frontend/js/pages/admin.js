@@ -273,6 +273,52 @@ window.archivarUsuario = async function(id) {
   }
 };
 
+window.editarTelefonoUsuario = async function(id, telefonoActual) {
+  const { value: nuevoTelefono } = await Swal.fire({
+    title: 'Editar Teléfono',
+    input: 'tel',
+    inputLabel: 'Número de teléfono',
+    inputValue: telefonoActual,
+    showCancelButton: true,
+    confirmButtonText: 'Guardar',
+    cancelButtonText: 'Cancelar'
+  });
+
+  if (nuevoTelefono !== undefined) {
+    try {
+      const token = localStorage.getItem('token');
+      Swal.fire({ title: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      
+      const res = await axios.put(`/api/admin/usuarios/${id}/telefono`, { telefono: nuevoTelefono }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (res.data.success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Éxito',
+          text: res.data.message,
+          timer: 1500,
+          showConfirmButton: false
+        });
+        
+        const containerF = document.getElementById('faltantesContainer');
+        if(containerF.style.display === 'block'){
+          document.getElementById('btnVerFaltantes').click(); 
+          setTimeout(() => document.getElementById('btnVerFaltantes').click(), 50); 
+        }
+        const containerA = document.getElementById('faltantesAutoevaluacionContainer');
+        if(containerA.style.display === 'block'){
+          document.getElementById('btnVerFaltantesAutoevaluacion').click(); 
+          setTimeout(() => document.getElementById('btnVerFaltantesAutoevaluacion').click(), 50); 
+        }
+      }
+    } catch (error) {
+      Swal.fire('Error', error.response?.data?.error || error.message, 'error');
+    }
+  }
+};
+
 const btnVerFaltantes = document.getElementById('btnVerFaltantes');
 const btnToggleArchivadosEntrada = document.getElementById('btnToggleArchivadosEntrada');
 
@@ -327,6 +373,10 @@ if (btnVerFaltantes) {
               <td>${f.nombre}</td>
               <td>${f.apellido || '—'}</td>
               <td>${f.correo}</td>
+              <td>
+                ${f.telefono || '—'} 
+                <button onclick="editarTelefonoUsuario('${f.id}', '${f.telefono || ''}')" style="background:transparent; border:none; cursor:pointer;" title="Editar Teléfono">✏️</button>
+              </td>
               <td>${f.area || '—'}</td>
               <td>
                 <button class="btn-archivar" style="background:${btnColor}" onclick="archivarUsuario('${f.id}')">
@@ -404,6 +454,10 @@ if (btnVerFaltantesAutoevaluacion) {
               <td>${f.nombre}</td>
               <td>${f.apellido || '—'}</td>
               <td>${f.correo}</td>
+              <td>
+                ${f.telefono || '—'} 
+                <button onclick="editarTelefonoUsuario('${f.id}', '${f.telefono || ''}')" style="background:transparent; border:none; cursor:pointer;" title="Editar Teléfono">✏️</button>
+              </td>
               <td>${f.area || '—'}</td>
               <td>
                 <button class="btn-archivar" style="background:${btnColor}" onclick="archivarUsuario('${f.id}')">

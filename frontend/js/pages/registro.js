@@ -4,6 +4,7 @@ document.getElementById('registroForm').addEventListener('submit', async functio
   const nombre = document.getElementById('nombre').value;
   const apellido = document.getElementById('apellido').value;
   const correo = document.getElementById('correo').value;
+  const telefono = document.getElementById('telefono').value;
   const password = document.getElementById('password').value;
   const areaid = document.getElementById('area').value;
   const cumpleanos = document.getElementById('cumpleanos').value;
@@ -24,6 +25,7 @@ document.getElementById('registroForm').addEventListener('submit', async functio
         nombre,
         apellido,
         correo,
+        telefono,
         password,
         areaid,
         cumpleanos,

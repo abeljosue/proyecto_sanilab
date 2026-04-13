@@ -199,6 +199,7 @@ exports.getFaltantesHoy = async (req, res) => {
       nombre: u.nombre,
       apellido: u.apellido,
       correo: u.correo,
+      telefono: u.telefono || null,
       area: u.areaid ? u.areaid.nombre : '_',
       archivado: u.archivado || false
     }));
@@ -247,6 +248,7 @@ exports.getFaltantesAutoevaluacionHoy = async (req, res) => {
       nombre: u.nombre,
       apellido: u.apellido,
       correo: u.correo,
+      telefono: u.telefono || null,
       area: u.areaid ? u.areaid.nombre : '_',
       archivado: u.archivado || false
     }));
@@ -342,6 +344,34 @@ exports.toggleArchivarUsuario = async (req, res) => {
     });
   } catch (error) {
     console.error('Error al archivar usuario:', error);
+    res.status(500).json({ success: false, error: 'Error del servidor' });
+  }
+};
+
+// ===================================
+// Función para Actualizar Teléfono
+// ===================================
+exports.updateTelefono = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { telefono } = req.body;
+    
+    const usuario = await Usuario.findById(id);
+
+    if (!usuario) {
+      return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    }
+
+    usuario.telefono = telefono || null;
+    await usuario.save();
+
+    res.json({ 
+      success: true, 
+      message: 'Teléfono actualizado correctamente.',
+      telefono: usuario.telefono
+    });
+  } catch (error) {
+    console.error('Error al actualizar telefono:', error);
     res.status(500).json({ success: false, error: 'Error del servidor' });
   }
 };

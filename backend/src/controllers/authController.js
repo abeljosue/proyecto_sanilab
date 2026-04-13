@@ -58,10 +58,10 @@ exports.login = async (req, res) => {
 
 exports.registro = async (req, res) => {
   try {
-    const { nombre, apellido, correo, password, areaid, genero, cumpleanos } = req.body;
+    const { nombre, apellido, correo, password, areaid, genero, cumpleanos, telefono } = req.body;
 
-    if (!nombre || !apellido || !correo || !password || !areaid || !genero || !cumpleanos) {
-      return res.status(400).json({ error: 'Todos los campos son obligatorios' });
+    if (!nombre || !apellido || !correo || !password || !areaid || !genero || !cumpleanos || !telefono) {
+      return res.status(400).json({ error: 'Todos los campos son obligatorios, incluyendo el teléfono' });
     }
 
     const existente = await Usuario.findOne({ correo });
@@ -82,6 +82,7 @@ exports.registro = async (req, res) => {
       areaid,
       genero,
       cumpleanos,
+      telefono,
       activo: 'SI',
       rol: 'USER'
     });

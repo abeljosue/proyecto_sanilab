@@ -18,6 +18,11 @@ const usuarioSchema = new mongoose.Schema({
     trim: true,
     lowercase: true
   },
+  telefono: {
+    type: String,
+    trim: true,
+    default: null
+  },
   passwordhash: {
     type: String,
     required: true
