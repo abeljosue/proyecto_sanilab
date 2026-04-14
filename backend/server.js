@@ -9,7 +9,7 @@ console.log('🧪 TEST - DATABASE (MONGO_URI/DATABASE_URL):', (process.env.MONGO
 
 const express = require('express');
 const fs = require('fs');
-const { initApp, getCors, getStaticOptions } = require('../anotaciones/core_dependencies');
+const { initApp, getCors, getStaticOptions } = require('./lib/core_dependencies');
 
 const app = initApp();
 const routes = require('./src/routes');
