@@ -7,7 +7,7 @@ axios.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       console.warn('⚠️ Token expirado o sesión inválida. Cerrando sesión automáticamente...');
       localStorage.clear(); // Destruimos los datos locales
-      window.location.href = '/index.html';
+      window.location.href = '/pages/auth/login.html'; // ✅ MEJORA: redirección correcta
     }
     return Promise.reject(error);
   }
@@ -24,7 +24,7 @@ function verificarExpiracion() {
     if (Date.now() >= expDate) {
       console.warn('⏱️ Tiempo de sesión agotado...');
       localStorage.clear();
-      window.location.href = '/index.html';
+      window.location.href = '/pages/auth/login.html'; // ✅ MEJORA: redirección correcta
     }
   } catch (err) { }
 }
@@ -87,7 +87,7 @@ async function cargarEstado() {
     const expDate = payload.exp * 1000;
     if (Date.now() >= expDate) {
       localStorage.clear();
-      window.location.href = '/index.html';
+      window.location.href = '/pages/auth/login.html'; // ✅ MEJORA: redirección correcta
       return;
     }
   } catch (err) { }
