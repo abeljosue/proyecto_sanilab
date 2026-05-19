@@ -1,7 +1,6 @@
 const RankingQuincenal = require('../models/RankingQuincenal');
 const Autoevaluacion = require('../models/Autoevaluacion');
 const Usuario = require('../models/Usuario');
-const Asistencia = require('../models/Asistencia');
 const { getLocalDate } = require('../utils/dateUtils');
 
 
@@ -18,7 +17,7 @@ exports.getAllRankings = async (req, res) => {
     let query = {};
     if (req.query.quincena) {
       let quincena = req.query.quincena;
-      if (quincena === 'actual') quincena = getMesActual();
+      if (quincena === 'actual') quincena = getMesActual(); // Lógica legacy
       query.quincena = quincena;
     }
 
@@ -30,6 +29,7 @@ exports.getAllRankings = async (req, res) => {
         match: { archivado: { $ne: true } }
       }); 
 
+    // Mapear para estructura plana esperada por frontend
     const result = rankings
       .filter(r => r.usuarioid !== null)
       .map(r => ({
@@ -80,22 +80,28 @@ exports.recalcularRanking = async (req, res) => {
     let quincena = req.body.quincena || req.query.quincena;
     if (quincena === 'actual') quincena = getMesActual();
 
+
+    // 1. Borrar ranking anterior de esa quincena
     await RankingQuincenal.deleteMany({ quincena });
 
+    // 1.5 Obtener IDs de usuarios NO archivados para no asignarles posición
     const usuariosActivos = await Usuario.find({ archivado: { $ne: true } }).select('_id');
     const idsActivos = usuariosActivos.map(u => u._id);
 
+    // 2. Agrupar puntajes de autoevaluaciones
+    // Aggregate en Autoevaluacion
     const puntajes = await Autoevaluacion.aggregate([
       { $match: { quincena: quincena, completada: 'SI', usuarioid: { $in: idsActivos } } },
       {
         $group: {
-          _id: "$usuarioid",
+          _id: "$usuarioid", // Agrupar por usuario
           puntajetotal: { $sum: "$puntajetotal" }
         }
       },
-      { $sort: { puntajetotal: -1 } }
+      { $sort: { puntajetotal: -1 } } // Ordenar mayor a menor
     ]);
 
+    // 3. Insertar nuevos rankings con posición
     const nuevosRankings = puntajes.map((p, index) => {
       const posicion = index + 1;
       return {
@@ -103,7 +109,7 @@ exports.recalcularRanking = async (req, res) => {
         quincena: quincena,
         puntajetotal: p.puntajetotal,
         posicion: posicion,
-        tieneruleta: posicion <= 3,
+        tieneruleta: posicion <= 3, // Top 3 tiene ruleta
         fechacalculo: new Date()
       };
     });
@@ -127,6 +133,7 @@ exports.getMiPosicion = async (req, res) => {
     let quincena = req.query.quincena || 'actual';
     if (quincena === 'actual') quincena = getMesActual();
 
+
     const ranking = await RankingQuincenal.findOne({ usuarioid, quincena });
 
     if (!ranking) {
@@ -140,6 +147,12 @@ exports.getMiPosicion = async (req, res) => {
   }
 };
 
+// Deprecated or rarely used directly unless manual adjustment
+exports.actualizarRankingUsuario = async (req, res) => {
+  // Implementar si es necesario update manual
+  res.json({ ok: true, message: 'Not implemented in Mongo migration yet' });
+};
+
 // ========== 🆕 NUEVA FUNCIÓN: RETOS PARA BAJO RENDIMIENTO ==========
 exports.getRetosUsuario = async (req, res) => {
   try {
@@ -150,17 +163,6 @@ exports.getRetosUsuario = async (req, res) => {
     
     // Obtener ranking del usuario
     const ranking = await RankingQuincenal.findOne({ usuarioid: userId, quincena: quincenaActual });
-    
-    // Obtener asistencias del usuario (últimos 30 días)
-    const fechaInicio = new Date();
-    fechaInicio.setDate(fechaInicio.getDate() - 30);
-    const asistencias = await Asistencia.find({
-      usuarioid: userId,
-      fecha: { $gte: fechaInicio }
-    });
-    
-    const tardanzas = asistencias.filter(a => (a.tardanza_minutos || 0) > 0).length;
-    const diasCompletos = asistencias.filter(a => a.estado === 'Jornada terminada').length;
     
     let retos = [];
     
@@ -179,31 +181,9 @@ exports.getRetosUsuario = async (req, res) => {
     if (ranking && ranking.posicion > 10) {
       retos.push({
         titulo: "🏆 Sube en el ranking",
-        descripcion: "Acumula 40 horas de asistencia perfecta",
+        descripcion: "Acumula horas de asistencia perfecta",
         puntosBonus: 15,
-        progreso: `${diasCompletos} días completos`,
-        completado: false
-      });
-    }
-    
-    // Reto 3: Muchas tardanzas
-    if (tardanzas > 3) {
-      retos.push({
-        titulo: "⏰ Sé más puntual",
-        descripcion: "Llega temprano 5 días seguidos sin tardanza",
-        puntosBonus: 10,
-        progreso: `${tardanzas} tardanzas registradas`,
-        completado: false
-      });
-    }
-    
-    // Reto 4: Falta de constancia
-    if (diasCompletos < 10 && asistencias.length > 0) {
-      retos.push({
-        titulo: "📅 Mejora tu constancia",
-        descripcion: "Completa tus jornadas laborales durante 10 días",
-        puntosBonus: 20,
-        progreso: `${diasCompletos}/10 días completos`,
+        progreso: `Posición #${ranking.posicion}`,
         completado: false
       });
     }
@@ -228,9 +208,4 @@ exports.getRetosUsuario = async (req, res) => {
     console.error('Error en getRetosUsuario:', error);
     res.status(500).json({ error: error.message });
   }
-};
-
-// Deprecated
-exports.actualizarRankingUsuario = async (req, res) => {
-  res.json({ ok: true, message: 'Use /recalcular endpoint instead' });
 };
