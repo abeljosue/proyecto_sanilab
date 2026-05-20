@@ -18,18 +18,19 @@ function timeToSeconds(timeStr) {
   return (h || 0) * 3600 + (m || 0) * 60 + (s || 0);
 }
 
-// ========== 🆕 VALIDACIÓN DE DIFERENCIA HORARIA (máximo 10 minutos) ==========
-function validarDiferenciaHoraria(horaLocal) {
-  const ahora = new Date();
-  const [horas, minutos, segundos] = horaLocal.split(':').map(Number);
-  const fechaHoraRegistro = new Date();
-  fechaHoraRegistro.setHours(horas, minutos, segundos || 0);
-  
-  const diferenciaMs = Math.abs(ahora - fechaHoraRegistro);
-  const diferenciaMinutos = diferenciaMs / 60000;
-  
-  return diferenciaMinutos <= 10;
-}
+// ========== 🆕 VALIDACIÓN DE DIFERENCIA HORARIA (ELIMINADA - ya no hay restricción) ==========
+// La función ya no se usa - se ha eliminado la validación de 10 minutos
+// function validarDiferenciaHoraria(horaLocal) {
+//   const ahora = new Date();
+//   const [horas, minutos, segundos] = horaLocal.split(':').map(Number);
+//   const fechaHoraRegistro = new Date();
+//   fechaHoraRegistro.setHours(horas, minutos, segundos || 0);
+//   
+//   const diferenciaMs = Math.abs(ahora - fechaHoraRegistro);
+//   const diferenciaMinutos = diferenciaMs / 60000;
+//   
+//   return diferenciaMinutos <= 10;
+// }
 
 exports.getAllAsistencias = async (req, res) => {
   try {
@@ -68,12 +69,8 @@ exports.marcarEntrada = async (req, res) => {
       return res.status(400).json({ error: 'Falta horaLocal en la petición' });
     }
 
-    // ========== 🆕 VALIDACIÓN DE HORA (máximo 10 minutos de diferencia) ==========
-    if (!validarDiferenciaHoraria(horaLocal)) {
-      return res.status(400).json({ 
-        error: 'La hora registrada no puede diferir más de 10 minutos de la hora actual' 
-      });
-    }
+    // ========== ✅ VALIDACIÓN DE HORA ELIMINADA - Ya no se verifica diferencia de 10 minutos ==========
+    // La validación ha sido removida. Ahora se acepta cualquier hora.
 
     console.log('🕐 Marcando entrada/reanudación:', usuarioid, horaLocal);
 
