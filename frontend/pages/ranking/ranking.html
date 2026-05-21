@@ -3,10 +3,10 @@
 
 <head>
   <meta charset="UTF-8" />
-  <title>Ranking Quincenal</title>
+  <title>Ranking Quincenal | Sanilab</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="../../assets/css/ranking.css" />
-  <link rel="icon" type="image/png" href="../../assets/images/Sanilab-favicon.png" />
+  <link rel="stylesheet" href="/assets/css/ranking.css" />
+  <link rel="icon" type="image/png" href="/assets/images/Sanilab-favicon.png" />
 </head>
 
 <body>
@@ -20,13 +20,15 @@
 
     <div class="ranking-card">
       <div class="ranking-header">
-        <div>Puesto</div>
-        <div>Nombre</div>
-        <div>Puntaje</div>
-        <div>Fecha</div>
-        <div>Ruleta</div>
+        <div>🏆 Puesto</div>
+        <div>👤 Participante</div>
+        <div>⭐ Puntaje</div>
+        <div>📅 Fecha</div>
+        <div>🎡 Ruleta</div>
       </div>
-      <div id="listaRanking"></div>
+      <div id="listaRanking">
+        <div class="loading-message">Cargando ranking...</div>
+      </div>
     </div>
 
     <div class="footer-note">🍃 ¡Sigamos creciendo y cuidando el planeta! 🍃</div>
@@ -34,7 +36,8 @@
     <div id="ruleta-btn-container"></div>
   </div>
 
-  <script src="../../js/pages/ranking.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="/js/pages/ranking.js"></script>
 </body>
 
 </html>
