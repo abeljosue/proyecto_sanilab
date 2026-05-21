@@ -102,6 +102,53 @@ body::before {
   text-align: center;
 }
 
+/* ========== 🆕 ESTILOS PARA AVATAR EN RANKING ========== */
+.rank-user {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+.rank-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1rem;
+  color: white;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.rank-name {
+  font-weight: 500;
+  color: #1f2933;
+}
+
+.rank-score {
+  font-weight: 600;
+  color: #22c55e;
+}
+
+.rank-pos {
+  font-weight: 600;
+}
+
+.rank-date {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.rank-ruleta {
+  font-size: 1.2rem;
+}
+
+/* ========== FIN ESTILOS AVATAR ========== */
+
 .ranking-row {
   background: #ffffff;
   border-bottom: 1px solid #e5e7eb;
@@ -157,9 +204,10 @@ body::before {
 @media (max-width: 600px) {
   .ranking-header,
   .ranking-row {
-    grid-template-columns: 46px 1.6fr 70px 80px 52px;
+    grid-template-columns: 50px 1.8fr 70px 80px 50px;
     padding: 12px 10px;
-    font-size: 13px;
+    font-size: 12px;
+    gap: 4px;
   }
 
   .ranking-title {
@@ -168,5 +216,15 @@ body::before {
 
   .ranking-subtitle {
     font-size: 15px;
+  }
+  
+  .rank-avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 0.8rem;
+  }
+  
+  .rank-user {
+    gap: 6px;
   }
 }
