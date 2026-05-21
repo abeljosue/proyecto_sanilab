@@ -73,7 +73,8 @@ exports.login = async (req, res) => {
       nombre: usuario.nombre
     };
 
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '8h' });
+    // 🔑 TOKEN CON EXPIRACIÓN DE 24 HORAS
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
 
     return res.json({
       token,
