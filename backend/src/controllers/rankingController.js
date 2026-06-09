@@ -1,4 +1,3 @@
-
 const RankingQuincenal = require('../models/RankingQuincenal');
 const Autoevaluacion = require('../models/Autoevaluacion');
 const Usuario = require('../models/Usuario');
@@ -13,12 +12,22 @@ function getMesActual() {
   return `${anio}-${mes}`;
 }
 
+// ========== 🆕 FUNCIÓN PARA COLOR DE AVATAR ==========
+function colorDeNombre(nombre) {
+  let hash = 0;
+  for (let i = 0; i < nombre.length; i++) {
+    hash = nombre.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const colores = ['#4caf50', '#2196f3', '#9c27b0', '#ff9800', '#e91e63', '#00bcd4', '#f44336', '#3f51b5'];
+  return colores[Math.abs(hash) % colores.length];
+}
+
 exports.getAllRankings = async (req, res) => {
   try {
     let query = {};
     if (req.query.quincena) {
       let quincena = req.query.quincena;
-      if (quincena === 'actual') quincena = getMesActual(); // Lógica legacy
+      if (quincena === 'actual') quincena = getMesActual();
       query.quincena = quincena;
     }
 
@@ -26,26 +35,45 @@ exports.getAllRankings = async (req, res) => {
       .sort({ posicion: 1 })
       .populate({
         path: 'usuarioid',
-        select: 'nombre apellido archivado',
+        select: 'nombre apellido archivado fondo_perfil',
         match: { archivado: { $ne: true } }
       }); 
 
-    // Mapear para estructura plana esperada por frontend
+    const userRole = req.user?.rol || 'USER';
+    
+    // Mapear con privacidad y avatar
     const result = rankings
       .filter(r => r.usuarioid !== null)
-      .map(r => ({
-      id: r.id,
-      usuarioid: r.usuarioid._id,
-      nombre: `${r.usuarioid.nombre.split(' ')[0]} ${r.usuarioid.apellido ? r.usuarioid.apellido.split(' ')[0] : ''}`.trim(),
-      quincena: r.quincena,
-      puntajetotal: r.puntajetotal,
-      posicion: r.posicion,
-      tieneruleta: r.tieneruleta,
-      fechacalculo: r.fechacalculo
-    }));
+      .map(r => {
+        const usuario = r.usuarioid;
+        let nombreMostrar = usuario.nombre;
+        let fotoMostrar = null;
+        let avatarColor = colorDeNombre(usuario.nombre);
+        let avatarInicial = usuario.nombre.charAt(0).toUpperCase();
+        
+        if (userRole === 'ADMIN') {
+          nombreMostrar = usuario.apellido ? `${usuario.nombre} ${usuario.apellido}` : usuario.nombre;
+          fotoMostrar = usuario.fondo_perfil || null;
+        }
+        
+        return {
+          id: r.id,
+          usuarioid: usuario._id,
+          nombre: nombreMostrar,
+          avatarInicial: avatarInicial,
+          avatarColor: avatarColor,
+          foto: fotoMostrar,
+          quincena: r.quincena,
+          puntajetotal: r.puntajetotal,
+          posicion: r.posicion,
+          tieneruleta: r.tieneruleta,
+          fechacalculo: r.fechacalculo
+        };
+      });
 
     res.json(result);
   } catch (err) {
+    console.error('Error getAllRankings:', err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -53,17 +81,31 @@ exports.getAllRankings = async (req, res) => {
 exports.getRankingById = async (req, res) => {
   try {
     const ranking = await RankingQuincenal.findById(req.params.id)
-      .populate('usuarioid', 'nombre apellido');
+      .populate('usuarioid', 'nombre apellido fondo_perfil');
 
     if (!ranking) {
       return res.status(404).json({ error: 'Ranking not found' });
     }
 
+    const userRole = req.user?.rol || 'USER';
+    const usuario = ranking.usuarioid;
+    
+    let nombreMostrar = usuario ? usuario.nombre : 'Desconocido';
+    let fotoMostrar = null;
+    let avatarInicial = usuario ? usuario.nombre.charAt(0).toUpperCase() : '?';
+    let avatarColor = usuario ? colorDeNombre(usuario.nombre) : '#4caf50';
+    
+    if (userRole === 'ADMIN' && usuario) {
+      nombreMostrar = usuario.apellido ? `${usuario.nombre} ${usuario.apellido}` : usuario.nombre;
+      fotoMostrar = usuario.fondo_perfil || null;
+    }
+
     const result = {
       ...ranking.toObject(),
-      nombre: ranking.usuarioid 
-        ? `${ranking.usuarioid.nombre.split(' ')[0]} ${ranking.usuarioid.apellido ? ranking.usuarioid.apellido.split(' ')[0] : ''}`.trim()
-        : 'Desconocido'
+      nombre: nombreMostrar,
+      avatarInicial: avatarInicial,
+      avatarColor: avatarColor,
+      foto: fotoMostrar
     };
 
     if (ranking.usuarioid && ranking.usuarioid.archivado) {
@@ -72,6 +114,7 @@ exports.getRankingById = async (req, res) => {
 
     res.json(result);
   } catch (err) {
+    console.error('Error getRankingById:', err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -81,28 +124,22 @@ exports.recalcularRanking = async (req, res) => {
     let quincena = req.body.quincena || req.query.quincena;
     if (quincena === 'actual') quincena = getMesActual();
 
-
-    // 1. Borrar ranking anterior de esa quincena
     await RankingQuincenal.deleteMany({ quincena });
 
-    // 1.5 Obtener IDs de usuarios NO archivados para no asignarles posición
     const usuariosActivos = await Usuario.find({ archivado: { $ne: true } }).select('_id');
     const idsActivos = usuariosActivos.map(u => u._id);
 
-    // 2. Agrupar puntajes de autoevaluaciones
-    // Aggregate en Autoevaluacion
     const puntajes = await Autoevaluacion.aggregate([
       { $match: { quincena: quincena, completada: 'SI', usuarioid: { $in: idsActivos } } },
       {
         $group: {
-          _id: "$usuarioid", // Agrupar por usuario
+          _id: "$usuarioid",
           puntajetotal: { $sum: "$puntajetotal" }
         }
       },
-      { $sort: { puntajetotal: -1 } } // Ordenar mayor a menor
+      { $sort: { puntajetotal: -1 } }
     ]);
 
-    // 3. Insertar nuevos rankings con posición
     const nuevosRankings = puntajes.map((p, index) => {
       const posicion = index + 1;
       return {
@@ -110,7 +147,7 @@ exports.recalcularRanking = async (req, res) => {
         quincena: quincena,
         puntajetotal: p.puntajetotal,
         posicion: posicion,
-        tieneruleta: posicion <= 3, // Top 3 tiene ruleta
+        tieneruleta: posicion <= 3,
         fechacalculo: new Date()
       };
     });
@@ -134,7 +171,6 @@ exports.getMiPosicion = async (req, res) => {
     let quincena = req.query.quincena || 'actual';
     if (quincena === 'actual') quincena = getMesActual();
 
-
     const ranking = await RankingQuincenal.findOne({ usuarioid, quincena });
 
     if (!ranking) {
@@ -148,8 +184,60 @@ exports.getMiPosicion = async (req, res) => {
   }
 };
 
-// Deprecated or rarely used directly unless manual adjustment
+// Deprecated
 exports.actualizarRankingUsuario = async (req, res) => {
-  // Implementar si es necesario update manual
   res.json({ ok: true, message: 'Not implemented in Mongo migration yet' });
+};
+
+// ========== RETOS PARA BAJO RENDIMIENTO ==========
+exports.getRetosUsuario = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Usuario no autenticado' });
+
+    const quincenaActual = getMesActual();
+    
+    const ranking = await RankingQuincenal.findOne({ usuarioid: userId, quincena: quincenaActual });
+    
+    let retos = [];
+    
+    if (ranking && ranking.puntajetotal < 20) {
+      retos.push({
+        titulo: "🎯 Mejora tu puntaje",
+        descripcion: "Completa todas tus autoevaluaciones a tiempo esta semana",
+        puntosBonus: 10,
+        progreso: `${ranking.puntajetotal}/20 puntos`,
+        completado: false
+      });
+    }
+    
+    if (ranking && ranking.posicion > 10) {
+      retos.push({
+        titulo: "🏆 Sube en el ranking",
+        descripcion: "Acumula horas de asistencia perfecta",
+        puntosBonus: 15,
+        progreso: `Posición #${ranking.posicion}`,
+        completado: false
+      });
+    }
+    
+    if (retos.length === 0) {
+      retos.push({
+        titulo: "🎉 ¡Excelente desempeño!",
+        descripcion: "Sigue así, estás en el camino correcto",
+        puntosBonus: 0,
+        completado: true
+      });
+    }
+    
+    res.json({
+      success: true,
+      puntajeActual: ranking?.puntajetotal || 0,
+      posicionActual: ranking?.posicion || null,
+      retos
+    });
+  } catch (error) {
+    console.error('Error en getRetosUsuario:', error);
+    res.status(500).json({ error: error.message });
+  }
 };

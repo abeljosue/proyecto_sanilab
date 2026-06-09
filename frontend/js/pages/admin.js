@@ -5,7 +5,7 @@ axios.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       console.warn('⚠️ Token expirado o sesión inválida. Cerrando sesión automáticamente...');
       localStorage.clear();
-      window.location.href = '/index.html';
+      window.location.href = '/pages/auth/login.html';  // ✅ CORREGIDO
     }
     return Promise.reject(error);
   }
@@ -19,7 +19,7 @@ setInterval(() => {
     const payload = JSON.parse(atob(token.split('.')[1]));
     if (Date.now() >= payload.exp * 1000) {
       localStorage.clear();
-      window.location.href = '/index.html';
+      window.location.href = '/pages/auth/login.html';  // ✅ CORREGIDO
     }
   } catch (err) { }
 }, 10000);
@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const token = localStorage.getItem('token');
   if (!token) {
     alert('Sesión no válida');
-    window.location.href = '/';
+    window.location.href = '/pages/auth/login.html';  // ✅ CORREGIDO
     return;
   }
 
@@ -62,7 +62,6 @@ async function cargarHoras() {
   const fechaDesde = document.getElementById('fechaDesde').value;
   const fechaHasta = document.getElementById('fechaHasta').value;
 
-  // 🛡️ MEJORA: Validar si el usuario es el Gerente (Solo Lectura)
   let esGerente = false;
   if (token) {
     try {
@@ -73,7 +72,6 @@ async function cargarHoras() {
     } catch (e) { }
   }
 
-  // 🛡️ MEJORA: Ocultar el Header de Acciones si es Gerente
   const thAcciones = document.getElementById('thAcciones');
   if (thAcciones) {
     thAcciones.style.display = esGerente ? 'none' : '';
@@ -106,14 +104,10 @@ async function cargarHoras() {
       const fecha = formatearFechaISO(row.fecha);
       const colorEstado = row.estado === 'Completado' ? '#4caf50' : '#ff9800';
 
-      // LÓGICA DE RESALTADO AUTOMÁTICO
       const isAuto = row.cierre_automatico;
-      // Tr será naranja transparente intenso de fondo
       const resalteBg = isAuto ? 'background-color: rgba(255, 152, 0, 0.2); border-left: 4px solid #e65100;' : '';
-      // Insignia alerta roja / naranja para que impacte visualmente
       const alarmaSalida = isAuto ? ` <span style="background:#e65100; color:white; font-size:10px; padding:2px 4px; border-radius:3px; margin-left:3px; font-weight:bold;">⚠️ Auto</span>` : '';
 
-      // Solo mostrar celda de editar si NO es gerente
       const celdaAcciones = !esGerente ? `
           <td>
             <button class="btn-editar" style="cursor:pointer; padding:5px 10px; background:#ff9800; color:white; border:none; border-radius:4px;" 
@@ -132,9 +126,8 @@ async function cargarHoras() {
           <td style="${isAuto ? 'color:#e65100; font-weight:bold;' : ''}">${horaSalida}${alarmaSalida}</td>
           <td><strong>${totalHoras}</strong></td>
           ${celdaAcciones}
-        </tr>
+        <tr>
       `;
-
     });
   } catch (error) {
     console.error('Error cargarHoras:', error);
@@ -225,6 +218,108 @@ async function exportarAGoogleSheets() {
   }
 }
 
+// ========== 🆕 NUEVA FUNCIÓN: REPORTE DE ASISTENCIA ==========
+async function mostrarReporteAsistencia() {
+  const token = localStorage.getItem('token');
+  const fechaInicio = document.getElementById('fechaReporteInicio')?.value;
+  const fechaFin = document.getElementById('fechaReporteFin')?.value;
+
+  try {
+    Swal.fire({ title: 'Cargando reporte...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    const params = {};
+    if (fechaInicio) params.fechaInicio = fechaInicio;
+    if (fechaFin) params.fechaFin = fechaFin;
+
+    const res = await axios.get('/api/admin/reportes/asistencia', { params, headers: { Authorization: `Bearer ${token}` } });
+    const data = res.data;
+
+    if (!data.success) throw new Error('Error al cargar reporte');
+
+    let html = `
+      <div style="max-height:400px; overflow:auto;">
+        <table style="width:100%; border-collapse:collapse;">
+          <thead><tr style="background:#22c55e; color:white;"><th>Usuario</th><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Horas</th><th>Tardanza</th></tr></thead>
+          <tbody>
+    `;
+    data.reporte.forEach(r => {
+      html += `<tr><td>${r.nombre} ${r.apellido}</td><td>${new Date(r.fecha).toLocaleDateString()}</td><td>${r.horaEntrada || '--'}</td><td>${r.horaSalida || '--'}</td><td>${r.horasTrabajadas}</td><td style="${r.tardanza > 0 ? 'color:red;' : ''}">${r.tardanza}</td></tr>`;
+    });
+    html += `</tbody></table></div>`;
+
+    Swal.fire({ title: '📊 Reporte de Asistencia', html: html, width: '90%', confirmButtonText: 'Cerrar' });
+  } catch (error) {
+    Swal.fire('Error', 'No se pudo cargar el reporte', 'error');
+  }
+}
+
+// ========== 🆕 NUEVA FUNCIÓN: ESTADÍSTICAS POR USUARIO ==========
+async function mostrarEstadisticasUsuario() {
+  const token = localStorage.getItem('token');
+  const { value: usuarioId } = await Swal.fire({
+    title: '📊 Estadísticas por Usuario',
+    input: 'text',
+    inputLabel: 'ID del Usuario',
+    showCancelButton: true,
+    confirmButtonText: 'Buscar'
+  });
+  if (!usuarioId) return;
+
+  try {
+    Swal.fire({ title: 'Cargando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    const res = await axios.get(`/api/admin/estadisticas/usuario/${usuarioId}`, { headers: { Authorization: `Bearer ${token}` } });
+    const stats = res.data.estadisticas;
+
+    const html = `
+      <table style="width:100%;">
+        <tr><td>📆 Total Asistencias</td><td><strong>${stats.totalAsistencias}</strong></td></tr>
+        <tr><td>🕐 Horas Totales</td><td><strong>${stats.horasTotales}</strong></td></tr>
+        <tr><td>⏰ Minutos Tardanza</td><td><strong>${stats.tardanzas}</strong></td></tr>
+        <tr><td>✅ Días Completos</td><td><strong>${stats.diasCompletos}</strong></td></tr>
+        <tr><td>⭐ Promedio Evaluación</td><td><strong>${stats.promedioEvaluacion}/25</strong></td></tr>
+        <tr><td>🏆 Última Posición Ranking</td><td><strong>#${stats.ultimaPosicionRanking || 'N/A'}</strong></td></tr>
+      </table>
+    `;
+    Swal.fire({ title: '📈 Estadísticas', html: html, confirmButtonText: 'Cerrar' });
+  } catch (error) {
+    Swal.fire('Error', 'Usuario no encontrado', 'error');
+  }
+}
+
+// ========== 🆕 NUEVA FUNCIÓN: USUARIOS BLOQUEADOS ==========
+async function mostrarUsuariosBloqueados() {
+  const token = localStorage.getItem('token');
+
+  try {
+    const res = await axios.get('/api/admin/seguridad/bloqueados', { headers: { Authorization: `Bearer ${token}` } });
+    const data = res.data;
+
+    if (data.usuarios.length === 0) {
+      Swal.fire('🔒 Usuarios Bloqueados', 'No hay usuarios bloqueados', 'info');
+      return;
+    }
+
+    let html = `<div style="max-height:400px; overflow:auto;"><table style="width:100%;"><thead><tr><th>Usuario</th><th>Tiempo restante</th></tr></thead><tbody>`;
+    data.usuarios.forEach(u => {
+      html += `<tr><td>${u.nombre_completo}</td><td style="color:red;">${u.minutos_restantes} min</td></tr>`;
+    });
+    html += `</tbody></table></div>`;
+
+    Swal.fire({ title: '🔒 Usuarios Bloqueados', html: html, confirmButtonText: 'Cerrar' });
+  } catch (error) {
+    Swal.fire('Error', 'No se pudo cargar la lista', 'error');
+  }
+}
+
+// ========== AGREGAR BOTONES (si existen en el HTML) ==========
+const btnReporteAsistencia = document.getElementById('btnReporteAsistencia');
+const btnEstadisticasUsuario = document.getElementById('btnEstadisticasUsuario');
+const btnUsuariosBloqueados = document.getElementById('btnUsuariosBloqueados');
+
+if (btnReporteAsistencia) btnReporteAsistencia.onclick = mostrarReporteAsistencia;
+if (btnEstadisticasUsuario) btnEstadisticasUsuario.onclick = mostrarEstadisticasUsuario;
+if (btnUsuariosBloqueados) btnUsuariosBloqueados.onclick = mostrarUsuariosBloqueados;
+
 // ------------------------------------
 // VARIABLES DE ESTADO PARA ARCHIVADOS
 // ------------------------------------
@@ -235,7 +330,6 @@ window.archivarUsuario = async function(id) {
   try {
     const token = localStorage.getItem('token');
     
-    // Mostrar loading
     Swal.fire({ title: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     
     const res = await axios.put(`/api/admin/usuarios/${id}/archivar`, {}, {
@@ -251,20 +345,18 @@ window.archivarUsuario = async function(id) {
         showConfirmButton: false
       });
       
-      // Recargar las listas si están abiertas
       const containerF = document.getElementById('faltantesContainer');
       if(containerF.style.display === 'block'){
-        document.getElementById('btnVerFaltantes').click(); // Cierra
-        setTimeout(() => document.getElementById('btnVerFaltantes').click(), 50); // Abre de nuevo
+        document.getElementById('btnVerFaltantes').click();
+        setTimeout(() => document.getElementById('btnVerFaltantes').click(), 50);
       }
       
       const containerA = document.getElementById('faltantesAutoevaluacionContainer');
       if(containerA.style.display === 'block'){
-        document.getElementById('btnVerFaltantesAutoevaluacion').click(); // Cierra
-        setTimeout(() => document.getElementById('btnVerFaltantesAutoevaluacion').click(), 50); // Abre de nuevo
+        document.getElementById('btnVerFaltantesAutoevaluacion').click();
+        setTimeout(() => document.getElementById('btnVerFaltantesAutoevaluacion').click(), 50);
       }
 
-      // Actualizar automáticamente panel acumulado de puntajes y horas sin recargar la página
       if (typeof cargarPuntajes === 'function') cargarPuntajes();
       if (typeof cargarHoras === 'function') cargarHoras();
     }
@@ -326,7 +418,6 @@ if (btnToggleArchivadosEntrada) {
   btnToggleArchivadosEntrada.addEventListener('click', () => {
     mostrandoArchivadosFaltantes = !mostrandoArchivadosFaltantes;
     btnToggleArchivadosEntrada.innerHTML = mostrandoArchivadosFaltantes ? '👁️ Ocultar Archivados' : '👁️ Mostrar Ocultos';
-    // Forzar recarga si está abierto
     const container = document.getElementById('faltantesContainer');
     if(container.style.display === 'block'){
        document.getElementById('btnVerFaltantes').click();
@@ -483,6 +574,7 @@ if (btnVerFaltantesAutoevaluacion) {
     }
   });
 }
+
 // Variable global para almacenar el ID que estamos editando actualmente
 let edicionAsistenciaId = null;
 
@@ -494,51 +586,36 @@ const modalEditNombre = document.getElementById('modalEditNombre');
 const inputEditEntrada = document.getElementById('inputEditEntrada');
 const inputEditSalida = document.getElementById('inputEditSalida');
 
-// FUNCIÓN 1: Abrir el modal desde el botón de la tabla
-// (Esta función debe llamarse exactamente "abrirModalEdicion" porque así la pusimos en el HTML)
 window.abrirModalEdicion = function (id, nombre, entrada, salida) {
-  // Guardamos el ID en la variable global
   edicionAsistenciaId = id;
-
-  // Pre-llenamos el Modal con los datos actuales
   modalEditNombre.textContent = nombre;
   inputEditEntrada.value = entrada && entrada !== '--:--' ? entrada : '';
   inputEditSalida.value = salida && salida !== '--:--' ? salida : '';
-
-  // Mostramos visualmente el modal
   modalEditarHoras.style.display = 'flex';
 };
 
-// FUNCIÓN 2: Cerrar el modal
 if (btnCerrarModal) {
   btnCerrarModal.addEventListener('click', () => {
     modalEditarHoras.style.display = 'none';
-    edicionAsistenciaId = null; // Limpiamos la variable
+    edicionAsistenciaId = null;
   });
 }
 
-// FUNCIÓN 3: Enviar la petición PUT al Backend
 if (btnGuardarEdicion) {
   btnGuardarEdicion.addEventListener('click', async () => {
-
-    // Obtener los datos mapeados del formulario
     const horaentrada = inputEditEntrada.value;
     const horasalida = inputEditSalida.value;
 
-    // Validación básica
     if (!edicionAsistenciaId) {
       alert("Error: No se encontró el ID de la asistencia.");
       return;
     }
 
     try {
-      // Bloqueamos el botón visualmente para evitar doble click
       btnGuardarEdicion.textContent = 'Guardando...';
       btnGuardarEdicion.disabled = true;
 
       const token = localStorage.getItem('token');
-
-      // La llamada axios con método PUT hacia la ruta que tú mismo creaste
       const res = await axios.put(`/api/admin/horas/${edicionAsistenciaId}`, {
         horaentrada: horaentrada,
         horasalida: horasalida
@@ -547,7 +624,6 @@ if (btnGuardarEdicion) {
       });
 
       if (res.data.success) {
-        // Mostramos un mensaje feliz
         Swal.fire({
           icon: 'success',
           title: 'Horas actualizadas',
@@ -555,21 +631,15 @@ if (btnGuardarEdicion) {
           timer: 2000,
           showConfirmButton: false
         });
-
-        // Cerramos el modal
         modalEditarHoras.style.display = 'none';
-
-        // Recargamos la tabla para ver las horas totales nuevas matemáticamente!
         cargarHoras();
       } else {
         throw new Error(res.data.error || 'Error desconocido al guardar.');
       }
-
     } catch (error) {
       console.error('Error al editar horas:', error);
       Swal.fire('Error', error.response?.data?.error || error.message, 'error');
     } finally {
-      // Devolvemos el botón a la normalidad
       btnGuardarEdicion.textContent = 'Guardar Cambios';
       btnGuardarEdicion.disabled = false;
     }

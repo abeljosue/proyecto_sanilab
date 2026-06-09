@@ -9,4 +9,7 @@ router.get('/:id', auth.verifyToken, rankingController.getRankingById);
 router.post('/actualizar', auth.verifyToken, rankingController.actualizarRankingUsuario);
 router.post('/recalcular', auth.verifyToken, rankingController.recalcularRanking);
 
+// 🆕 NUEVA RUTA: Retos para bajo rendimiento
+router.get('/retos', auth.verifyToken, rankingController.getRetosUsuario);
+
 module.exports = router;

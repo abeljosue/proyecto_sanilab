@@ -1,4 +1,3 @@
-
 const Asistencia = require('../models/Asistencia');
 const Usuario = require('../models/Usuario');
 const RankingQuincenal = require('../models/RankingQuincenal');
@@ -6,11 +5,11 @@ const Autoevaluacion = require('../models/Autoevaluacion');
 const googleSheetsService = require('../services/googleSheetsService');
 const { getFechaHoyMidnight, getRangoHoy } = require('../utils/dateUtils');
 
+// ========== EXISTENTE: OBTENER HORAS ==========
 exports.getHoras = async (req, res) => {
   try {
     const { fechaDesde, fechaHasta, nombre } = req.query;
 
-    // Construir filtro
     let filter = {};
     if (fechaDesde || fechaHasta) {
       filter.fecha = {};
@@ -21,14 +20,12 @@ exports.getHoras = async (req, res) => {
         filter.fecha.$lte = new Date(`${fechaHasta}T23:59:59.999Z`);
       }
     } else {
-      // 🛡️ MEJORA: Por defecto solo mostrar hoy y ayer
       const hoy = getFechaHoyMidnight();
       const ayer = new Date(hoy);
       ayer.setUTCDate(hoy.getUTCDate() - 1);
       filter.fecha = { $gte: ayer, $lte: hoy };
     }
 
-    // Para filtrar por nombre (que está en otra colección), primero buscamos usuarios
     if (nombre) {
       const usuarios = await Usuario.find({ nombre: { $regex: nombre, $options: 'i' } });
       const usuarioIds = usuarios.map(u => u._id);
@@ -39,31 +36,19 @@ exports.getHoras = async (req, res) => {
       .populate({
         path: 'usuarioid',
         select: 'nombre apellido areaid',
-        populate: {
-          path: 'areaid',
-          select: 'nombre'
-        }
+        populate: { path: 'areaid', select: 'nombre' }
       })
       .sort({ fecha: -1 });
 
-    // Mapear resultado plano
     const rows = asistencias.map(a => {
       const u = a.usuarioid;
-
-      // Concatenar nombre y apellido limpiamente
       const nombreCompleto = u ? `${u.nombre} ${u.apellido || ''}`.trim() : 'Desconocido';
-
-      // Extraer nombre del área si existe
       const areaNombre = (u && u.areaid) ? u.areaid.nombre : '-';
-
-      // Calcular formato HH:MM:SS para horatotal (segundos)
       const seconds = a.horas_trabajadas || 0;
       const h = Math.floor(seconds / 3600);
       const m = Math.floor((seconds % 3600) / 60);
       const s = Math.floor(seconds % 60);
       const horatotal = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-
-      // Todos los registros aquí son de personas que marcaron entrada
       const estado = a.horasalida ? 'Completado' : 'En Curso';
 
       return {
@@ -75,7 +60,8 @@ exports.getHoras = async (req, res) => {
         horaentrada: a.horaentrada,
         horasalida: a.horasalida,
         horatotal: horatotal,
-        cierre_automatico: a.cierre_automatico || false
+        cierre_automatico: a.cierre_automatico || false,
+        tardanza_minutos: a.tardanza_minutos || 0
       };
     });
 
@@ -86,6 +72,7 @@ exports.getHoras = async (req, res) => {
   }
 };
 
+// ========== EXISTENTE: OBTENER PUNTAJES ==========
 exports.getPuntajes = async (req, res) => {
   try {
     const { nombre } = req.query;
@@ -108,11 +95,11 @@ exports.getPuntajes = async (req, res) => {
     const rows = rankings
       .filter(r => r.usuarioid !== null)
       .map(r => ({
-      nombre: r.usuarioid.nombre,
-      quincena: r.quincena,
-      puntajetotal: r.puntajetotal,
-      posicion: r.posicion
-    }));
+        nombre: r.usuarioid.nombre,
+        quincena: r.quincena,
+        puntajetotal: r.puntajetotal,
+        posicion: r.posicion
+      }));
 
     res.json(rows);
   } catch (err) {
@@ -120,6 +107,143 @@ exports.getPuntajes = async (req, res) => {
   }
 };
 
+// ========== 🆕 NUEVO: REPORTE DE TARDANZAS Y FALTAS ==========
+exports.getReporteAsistencia = async (req, res) => {
+  try {
+    const { fechaInicio, fechaFin, usuarioId } = req.query;
+    
+    let query = {};
+    if (fechaInicio && fechaFin) {
+      query.fecha = { 
+        $gte: new Date(fechaInicio), 
+        $lte: new Date(fechaFin) 
+      };
+    }
+    if (usuarioId) {
+      query.usuarioid = usuarioId;
+    }
+
+    const asistencias = await Asistencia.find(query).populate('usuarioid', 'nombre apellido');
+    
+    // Calcular estadísticas
+    let totalHoras = 0;
+    let totalTardanzas = 0;
+    let totalFaltas = 0;
+    let totalDias = 0;
+
+    const reporte = asistencias.map(a => {
+      const horas = (a.horas_trabajadas || 0) / 3600;
+      totalHoras += horas;
+      totalTardanzas += a.tardanza_minutos || 0;
+      totalDias++;
+      
+      if (a.estado !== 'Jornada terminada') {
+        totalFaltas++;
+      }
+
+      return {
+        nombre: a.usuarioid?.nombre || 'Desconocido',
+        apellido: a.usuarioid?.apellido || '',
+        fecha: a.fecha,
+        horaEntrada: a.horaentrada,
+        horaSalida: a.horasalida,
+        horasTrabajadas: horas.toFixed(2),
+        tardanza: a.tardanza_minutos || 0,
+        estado: a.estado
+      };
+    });
+
+    res.json({
+      success: true,
+      totalRegistros: asistencias.length,
+      totalHoras: totalHoras.toFixed(2),
+      totalTardanzas,
+      totalFaltas,
+      reporte
+    });
+  } catch (error) {
+    console.error('Error en getReporteAsistencia:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ========== 🆕 NUEVO: ESTADÍSTICAS POR USUARIO ==========
+exports.getEstadisticasUsuario = async (req, res) => {
+  try {
+    const { usuarioId } = req.params;
+    const { fechaInicio, fechaFin } = req.query;
+    
+    let query = { usuarioid: usuarioId };
+    if (fechaInicio && fechaFin) {
+      query.fecha = { 
+        $gte: new Date(fechaInicio), 
+        $lte: new Date(fechaFin) 
+      };
+    }
+    
+    // Estadísticas de asistencia
+    const asistencias = await Asistencia.find(query);
+    const horasTotales = asistencias.reduce((sum, a) => sum + (a.horas_trabajadas || 0), 0) / 3600;
+    const tardanzas = asistencias.reduce((sum, a) => sum + (a.tardanza_minutos || 0), 0);
+    const diasCompletos = asistencias.filter(a => a.estado === 'Jornada terminada').length;
+    
+    // Estadísticas de autoevaluaciones
+    const autoevaluaciones = await Autoevaluacion.find({ usuarioid: usuarioId });
+    const promedioEval = autoevaluaciones.length > 0 
+      ? autoevaluaciones.reduce((sum, a) => sum + (a.puntajetotal || 0), 0) / autoevaluaciones.length 
+      : 0;
+    
+    // Último ranking
+    const ultimoRanking = await RankingQuincenal.findOne({ usuarioid: usuarioId })
+      .sort({ quincena: -1 });
+    
+    res.json({
+      success: true,
+      estadisticas: {
+        horasTotales: horasTotales.toFixed(2),
+        tardanzas,
+        diasCompletos,
+        totalAsistencias: asistencias.length,
+        promedioEvaluacion: promedioEval.toFixed(1),
+        ultimaPosicionRanking: ultimoRanking?.posicion || null,
+        ultimoPuntajeRanking: ultimoRanking?.puntajetotal || 0
+      }
+    });
+  } catch (error) {
+    console.error('Error en getEstadisticasUsuario:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ========== 🆕 NUEVO: USUARIOS BLOQUEADOS ==========
+exports.getUsuariosBloqueados = async (req, res) => {
+  try {
+    const ahora = new Date();
+    const usuariosBloqueados = await Usuario.find({
+      bloqueado_hasta: { $gt: ahora },
+      archivado: false
+    }).select('nombre apellido correo bloqueado_hasta intentos_fallidos');
+
+    res.json({
+      success: true,
+      usuarios: usuariosBloqueados.map(u => ({
+        id: u._id,
+        nombre: u.nombre,
+        apellido: u.apellido,
+        nombre_completo: u.nombre_completo,
+        correo: u.correo,
+        bloqueado_hasta: u.bloqueado_hasta,
+        minutos_restantes: Math.ceil((u.bloqueado_hasta - ahora) / 1000 / 60),
+        intentos_fallidos: u.intentos_fallidos
+      }))
+    });
+  } catch (error) {
+    console.error('Error en getUsuariosBloqueados:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ========== EXISTENTE: EXPORTAR HORAS ==========
 exports.exportHorasSheets = async (req, res) => {
   try {
     console.log('📊 Iniciando exportación de horas a Google Sheets...');
@@ -142,7 +266,8 @@ exports.exportHorasSheets = async (req, res) => {
         fecha: a.fecha.toISOString().split('T')[0],
         horaentrada: a.horaentrada,
         horasalida: a.horasalida,
-        horatotal: horatotal
+        horatotal: horatotal,
+        tardanza: a.tardanza_minutos || 0
       };
     });
 
@@ -167,8 +292,7 @@ exports.exportHorasSheets = async (req, res) => {
   }
 };
 
-// Reutilizar lógica de asistencia si se necesita en admin
-exports.getAllAsistencias = exports.getHoras; // O adaptar según necesidad
+// ========== EXISTENTE: FALTANTES DEL DÍA ==========
 exports.getFaltantesHoy = async (req, res) => {
   try {
     const fechaHoy = getFechaHoyMidnight();
@@ -215,12 +339,12 @@ exports.getFaltantesHoy = async (req, res) => {
   }
 };
 
+// ========== EXISTENTE: FALTANTES AUTOEVALUACIÓN ==========
 exports.getFaltantesAutoevaluacionHoy = async (req, res) => {
   try {
     const { inicio, fin } = getRangoHoy();
     const { mostrarArchivados } = req.query;
 
-    // 1. Buscar quiénes ya hicieron la autoevaluación HOY
     const autoevaluacionesHoy = await Autoevaluacion.find({
       fechaevaluacion: { $gte: inicio, $lte: fin },
       completada: 'SI'
@@ -240,7 +364,6 @@ exports.getFaltantesAutoevaluacionHoy = async (req, res) => {
       filter.archivado = { $ne: true };
     }
 
-    // 2. Buscar usuarios activos (rol USER) que NO están en esa lista
     const queryFaltante = await Usuario.find(filter).populate('areaid', 'nombre');
 
     const faltantes = queryFaltante.map(u => ({
@@ -264,6 +387,8 @@ exports.getFaltantesAutoevaluacionHoy = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+// ========== EXISTENTE: EDITAR HORAS ==========
 exports.updateHoras = async (req, res) => {
   try {
     const { id } = req.params;
@@ -275,26 +400,20 @@ exports.updateHoras = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Asistencia no encontrada' });
     }
 
-    // Actualizar horas
     if (horaentrada) asistencia.horaentrada = horaentrada;
     if (horasalida) asistencia.horasalida = horasalida;
 
-    // RE-CÁLCULO DE HORAS TRABAJADAS
+    // Recalcular horas trabajadas
     if (asistencia.horaentrada && asistencia.horasalida) {
       const fechaCorta = asistencia.fecha.toISOString().split('T')[0];
-
-      // Corregir formato HH:mm → HH:mm:ss
-      const entrada = asistencia.horaentrada.length === 5 ?
-        `${asistencia.horaentrada}:00` : asistencia.horaentrada;
-      const salida = asistencia.horasalida.length === 5 ?
-        `${asistencia.horasalida}:00` : asistencia.horasalida;
+      const entrada = asistencia.horaentrada.length === 5 ? `${asistencia.horaentrada}:00` : asistencia.horaentrada;
+      const salida = asistencia.horasalida.length === 5 ? `${asistencia.horasalida}:00` : asistencia.horasalida;
 
       const objEntrada = new Date(`${fechaCorta}T${entrada}`);
       let objSalida = new Date(`${fechaCorta}T${salida}`);
 
-      // 🌙 SOPORTE NOCTURNO: Si la salida es menor que la entrada, cruzó medianoche
       if (objSalida <= objEntrada) {
-        objSalida.setDate(objSalida.getDate() + 1); // Sumar 1 día
+        objSalida.setDate(objSalida.getDate() + 1);
       }
 
       const diffMs = objSalida - objEntrada;
@@ -303,7 +422,6 @@ exports.updateHoras = async (req, res) => {
       asistencia.horas_trabajadas = 0;
     }
 
-    // 🛡️ BLINDAJE: Desactivar bandera de auto-cierre y marcar como editado manualmente
     if (horasalida) {
       asistencia.cierre_automatico = false;
       asistencia.estado = 'Jornada terminada';
@@ -311,19 +429,14 @@ exports.updateHoras = async (req, res) => {
 
     await asistencia.save();
 
-    console.log(`✅ [ADMIN] Horas actualizadas para asistencia ID: ${id} | cierre_automatico: ${asistencia.cierre_automatico}`);
-
     res.json({ success: true, message: 'Horas actualizadas correctamente.', asistencia });
-
   } catch (error) {
     console.error('❌ Error en updateHoras:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 };
 
-// ===================================
-// Función para Archivar/Restaurar
-// ===================================
+// ========== EXISTENTE: ARCHIVAR/RESTAURAR USUARIO ==========
 exports.toggleArchivarUsuario = async (req, res) => {
   try {
     const { id } = req.params;
@@ -333,7 +446,6 @@ exports.toggleArchivarUsuario = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
     }
 
-    // Toggle valor: Si era false pasa a true, si era true pasa a false
     usuario.archivado = !usuario.archivado;
     await usuario.save();
 
@@ -348,9 +460,7 @@ exports.toggleArchivarUsuario = async (req, res) => {
   }
 };
 
-// ===================================
-// Función para Actualizar Teléfono
-// ===================================
+// ========== EXISTENTE: ACTUALIZAR TELÉFONO ==========
 exports.updateTelefono = async (req, res) => {
   try {
     const { id } = req.params;
@@ -375,5 +485,3 @@ exports.updateTelefono = async (req, res) => {
     res.status(500).json({ success: false, error: 'Error del servidor' });
   }
 };
-
-

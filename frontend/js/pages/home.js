@@ -1,18 +1,15 @@
 // ================= INTERCEPTOR GLOBAL DE AXIOS =================
-// Este vigilante "escucha" si el servidor devuelve Error 401 (Token Vencido)
 axios.interceptors.response.use(
   function (response) {
     return response;
   },
   function (error) {
     if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-      // 1. Limpiar todos los datos locales
       localStorage.removeItem('token');
       localStorage.removeItem('usuarioid');
       localStorage.removeItem('usuario');
       localStorage.removeItem('areaid');
 
-      // 2. Avisar al usuario y enviarlo al login
       Swal.fire({
         icon: 'warning',
         title: 'Sesión Expirada ⏱️',
@@ -21,7 +18,7 @@ axios.interceptors.response.use(
         allowOutsideClick: false,
         allowEscapeKey: false
       }).then(() => {
-        window.location.href = '/index.html';
+        window.location.href = '/pages/auth/login.html';  // ✅ CORREGIDO
       });
     }
     return Promise.reject(error);
@@ -30,21 +27,8 @@ axios.interceptors.response.use(
 // ===============================================================
 
 if (!localStorage.getItem('token')) {
-  window.location.href = '/pages/auth/registro.html';
+  window.location.href = '/pages/auth/login.html';  // ✅ CORREGIDO
 }
-// --- ESCUDO AUTO-LOGOUT ---
-axios.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response && error.response.status === 401) {
-      console.warn('⚠️ Token expirado o sesión inválida. Cerrando sesión automáticamente...');
-      localStorage.clear(); // Destruimos los datos locales
-      window.location.href = '/index.html';
-    }
-    return Promise.reject(error);
-  }
-);
-// --- FIN DEL ESCUDO ---
 
 // --- VERIFICADOR ACTIVO (AUTO-LOGOUT SIN CLIC) ---
 function verificarExpiracion() {
@@ -52,15 +36,15 @@ function verificarExpiracion() {
   if (!token) return;
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
-    const expDate = payload.exp * 1000; // a milisegundos
+    const expDate = payload.exp * 1000;
     if (Date.now() >= expDate) {
       console.warn('⏱️ Tiempo de sesión agotado. Redirigiendo...');
       localStorage.clear();
-      window.location.href = '/index.html';
+      window.location.href = '/pages/auth/login.html';  // ✅ CORREGIDO
     }
   } catch (err) { }
 }
-setInterval(verificarExpiracion, 10000); // Revisa silenciosamente cada 10 segundos
+setInterval(verificarExpiracion, 10000);
 // -------------------------------------------------
 
 function getTodayKey(prefix) {
@@ -68,14 +52,12 @@ function getTodayKey(prefix) {
   const hoy = new Date().toISOString().slice(0, 10);
   return `${prefix}_${usuarioid}_${hoy}`;
 }
-function lanzarCañonesConfeti() {
-  if (typeof confetti !== 'function') return; // Seguridad si falla el CDN
 
+function lanzarCañonesConfeti() {
+  if (typeof confetti !== 'function') return;
   var duration = 4000;
   var end = Date.now() + duration;
-
   (function frame() {
-    // Cañón izquierdo
     confetti({
       particleCount: 5,
       angle: 60,
@@ -83,7 +65,6 @@ function lanzarCañonesConfeti() {
       origin: { x: 0 },
       colors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
     });
-    // Cañón derecho
     confetti({
       particleCount: 5,
       angle: 120,
@@ -91,18 +72,16 @@ function lanzarCañonesConfeti() {
       origin: { x: 1 },
       colors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
     });
-
     if (Date.now() < end) {
       requestAnimationFrame(frame);
     }
   }());
 }
-// 📋 MODAL DE RECORDATORIO DE AUTOEVALUACIÓN (Miércoles y Sábados)
+
 async function verificarRecordatorioAutoeval() {
   const token = localStorage.getItem('token');
   if (!token) return;
 
-  // Control: no mostrar dos veces al mismo usuario el mismo día
   const claveVisto = getTodayKey('autoeval_reminder_visto');
   if (localStorage.getItem(claveVisto) === '1') return;
 
@@ -112,10 +91,8 @@ async function verificarRecordatorioAutoeval() {
     });
     const estado = res.data;
 
-    // Solo mostrar si es día permitido Y aún no ha completado
     if (estado.permitido) {
-      localStorage.setItem(claveVisto, '1'); // Marcar como visto
-
+      localStorage.setItem(claveVisto, '1');
       await Swal.fire({
         icon: 'warning',
         title: '📋 ¡Hoy toca Autoevaluación!',
@@ -151,45 +128,30 @@ async function verificarCumpleanosDelDia() {
   if (!token) return;
 
   try {
-    const res = await fetch('/api/cumpleanos', {
+    const res = await axios.get('/api/cumpleanos', {
       headers: { Authorization: `Bearer ${token}` }
     });
-    if (!res.ok) return;
+    const data = res.data;
 
-    const data = await res.json();
-
-    // Si hay cumpleañeros HOY
     if (data.success && data.hoy && data.hoy.length > 0) {
-      // 1. Tomamos al primer cumpleañero (o si hubieran varios, extraemos los nombres)
       const cumpleaneros = data.hoy.map(u => u.nombre).join(' y ');
-
-      // 2. Control de sesión: Verificar si el usuario actual ya vio el modal HOY
-      // Creamos una clave única: "cumplevisto_IDUSUARIO_FECHAHOY"
       const claveStorageVisto = getTodayKey('cumple_hoy_visto');
       const yaLoVio = localStorage.getItem(claveStorageVisto) === '1';
 
       if (!yaLoVio) {
-        // Enchufar el nombre(s) en el modal
         const spanNombre = document.getElementById('nombreCumpleaneroModal');
         if (spanNombre) spanNombre.textContent = cumpleaneros;
-
-        // Quitar la clase hidden al modal (Animación In)
         const modal = document.getElementById('modalCumpleanosHoy');
         if (modal) modal.classList.remove('hidden');
-
-        // Lanzamos la celebración
         lanzarCañonesConfeti();
-
-        // Registramos que ya lo vio HOY para no molestar si recarga
         localStorage.setItem(claveStorageVisto, '1');
       }
     }
   } catch (err) {
-    console.error('Error al verificar cumpleaños del día en el modal:', err);
+    console.error('Error al verificar cumpleaños del día:', err);
   }
 }
 
-// Función global que cerrará el Modal al dar click al botón de "¡Entendido!"
 window.cerrarModalCumpleanos = function () {
   const modal = document.getElementById('modalCumpleanosHoy');
   if (modal) modal.classList.add('hidden');
@@ -199,48 +161,33 @@ async function configurarBotonResultados() {
   const btnResultados = document.querySelector('.nav-button[data-section="resultados"]');
   if (!btnResultados) return;
 
-  btnResultados.style.display = 'none'; // Oculto por defecto hasta validar
+  btnResultados.style.display = 'none';
 
   const token = localStorage.getItem('token');
   if (!token) return;
 
   try {
-    // 1. Consultamos el estado real al backend (este endpoint ya valida Ranking, Día y Giro)
-    const res = await fetch('/api/ruleta/estado', {
+    const res = await axios.get('/api/ruleta/estado', {
       headers: { Authorization: `Bearer ${token}` }
     });
+    const estado = res.data;
 
-    if (!res.ok) {
-      // Si el servidor da error (ej. 403 por ranking), simplemente no mostramos el botón
-      return;
-    }
-
-    const estado = await res.json();
-
-    // 2. Si el tipo es 'fuera_top3', mantenemos el botón oculto
     if (estado.tipo === 'fuera_top3') {
       btnResultados.style.display = 'none';
       return;
     }
 
-    // 3. Si llegó aquí, es Top 3. Mostramos el botón.
     btnResultados.style.display = 'flex';
-
-    // 4. Lógica de bloqueo preventivo
     const desc = btnResultados.querySelector('.button-description');
 
     if (!estado.permitido) {
-      // Configuramos el mensaje de descripción
       if (desc) {
         desc.textContent = (estado.tipo === 'ya_giro')
           ? 'Premio ya reclamado'
           : 'Disponible solo los Sábados';
       }
-
-      // Bloqueamos el clic para mostrar el mensaje de error específico
       btnResultados.onclick = function (e) {
-        e.preventDefault(); // Evita que navegue a la página de ruleta
-
+        e.preventDefault();
         Swal.fire({
           icon: (estado.tipo === 'ya_giro') ? 'success' : 'info',
           title: (estado.tipo === 'ya_giro') ? '🎉 ¡Ya participaste!' : '📅 Aún no es el día',
@@ -250,20 +197,15 @@ async function configurarBotonResultados() {
         });
       };
     } else {
-      // SI ESTÁ PERMITIDO:
       if (desc) desc.textContent = 'Reclama tu premio';
-
-      // Aseguramos que el botón navegue a la página de resultados
       btnResultados.onclick = function () {
         window.location.href = '/pages/resultados/resultados.html';
       };
     }
-
   } catch (err) {
     console.error('Error al configurar botón Resultados:', err);
   }
 }
-
 
 async function marcarProgresoHome() {
   const asistenciaDone = localStorage.getItem(getTodayKey('asis_completa')) === '1';
@@ -280,7 +222,6 @@ async function marcarProgresoHome() {
     cardRank.classList.add('nav-button--completed');
   }
 
-  // ============ VERIFICACIÓN DE AUTOEVALUACIÓN ============
   if (cardAuto) {
     const token = localStorage.getItem('token');
     try {
@@ -290,21 +231,15 @@ async function marcarProgresoHome() {
       const estado = res.data;
 
       if (estado.permitido) {
-        // ✅ Día permitido y NO ha completado: dejar pasar al módulo
         cardAuto.onclick = function () {
           window.location.href = '/pages/autoevaluacion/index.html';
         };
       } else {
-        // 🔒 Bloqueado: marcar visualmente como completado/bloqueado
         cardAuto.classList.add('nav-button--completed');
-
-        // Cambiar la descripción del botón
         const desc = cardAuto.querySelector('.button-description');
         if (desc) {
           desc.textContent = `Próxima: ${estado.proximoDia} ${estado.proximaFecha}`;
         }
-
-        // Al hacer clic, mostrar modal de aviso
         cardAuto.onclick = function (e) {
           e.preventDefault();
           Swal.fire({
@@ -322,20 +257,16 @@ async function marcarProgresoHome() {
       }
     } catch (err) {
       console.error('Error verificando estado autoevaluacion:', err);
-      // Si falla, dejar navegar normal
       cardAuto.onclick = function () {
         window.location.href = '/pages/autoevaluacion/index.html';
       };
     }
   }
-  // ============ FIN VERIFICACIÓN ============
 }
-
 
 function initHome() {
   const btnLogout = document.getElementById('btnLogout');
   const btnAdmin = document.getElementById('btnAdmin');
-  const btnPerfil = document.getElementById('btnPerfil'); // 👈 NUEVO
   const modal = document.getElementById('no-access-modal');
   const closeBtn = document.getElementById('closeNoAccess');
 
@@ -356,30 +287,23 @@ function initHome() {
 
   if (btnLogout) {
     btnLogout.onclick = function () {
-      localStorage.removeItem('token');
-      localStorage.removeItem('usuarioid');
-      localStorage.removeItem('usuario');
       localStorage.clear();
-      window.location.href = '/';
+      window.location.href = '/pages/auth/login.html';  // ✅ CORREGIDO
     };
   }
 
   if (btnAdmin && modal && closeBtn) {
     btnAdmin.onclick = function () {
       const usuario = JSON.parse(localStorage.getItem('usuario') || 'null');
-      console.log('USUARIO EN HOME =>', usuario);
-
       if (usuario && (usuario.rol || '').toLowerCase() === 'admin') {
         window.location.href = '/pages/admin/index.html';
       } else {
         modal.classList.remove('hidden');
       }
     };
-
     closeBtn.onclick = function () {
       modal.classList.add('hidden');
     };
-
     modal.addEventListener('click', (e) => {
       if (e.target === modal) {
         modal.classList.add('hidden');
@@ -400,18 +324,14 @@ async function verificarConstancia520() {
   if (!token) return;
 
   try {
-    const res = await fetch('/api/constancias/verificar-elegibilidad', {
+    const res = await axios.get('/api/constancias/verificar-elegibilidad', {
       headers: { Authorization: `Bearer ${token}` }
     });
-
-    if (!res.ok) return;
-
-    const data = await res.json();
+    const data = res.data;
     const cardConstancia = document.getElementById('cardConstancia');
 
     if (data.elegible && !data.yaReclamo && cardConstancia) {
       cardConstancia.style.display = 'flex';
-
       const desc = cardConstancia.querySelector('.button-description');
       if (desc) {
         desc.textContent = `Tienes ${data.horasTotales}h acumuladas`;
@@ -427,18 +347,14 @@ async function verificarEvaluacionCompaneros() {
   if (!token) return;
 
   try {
-    const res = await fetch('/api/evaluacion-companeros/puede-evaluar', {
+    const res = await axios.get('/api/evaluacion-companeros/puede-evaluar', {
       headers: { Authorization: `Bearer ${token}` }
     });
-
-    if (!res.ok) return;
-
-    const data = await res.json();
+    const data = res.data;
     const cardEvalComp = document.getElementById('cardEvaluacionCompaneros');
 
     if (data.puedeEvaluar && cardEvalComp) {
       cardEvalComp.style.display = 'flex';
-
       const desc = cardEvalComp.querySelector('.button-description');
       if (desc && !data.puedeEvaluar) {
         desc.textContent = `Disponible en ${data.diasRestantes} día(s)`;
@@ -459,21 +375,15 @@ function cerrarConfirmacion() {
 
 async function confirmarSolicitudConstancia() {
   const token = localStorage.getItem('token');
-
   cerrarConfirmacion();
 
   try {
-    const res = await fetch('/api/constancias/solicitar', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
+    const res = await axios.post('/api/constancias/solicitar', {}, {
+      headers: { Authorization: `Bearer ${token}` }
     });
+    const data = res.data;
 
-    const data = await res.json();
-
-    if (res.ok) {
+    if (res.status === 200 || res.status === 201) {
       mostrarModalConstancia();
       document.getElementById('cardConstancia').style.display = 'none';
     } else {

@@ -1,4 +1,3 @@
-
 const mongoose = require('mongoose');
 
 const usuarioSchema = new mongoose.Schema({
@@ -59,7 +58,18 @@ const usuarioSchema = new mongoose.Schema({
   archivado: {
     type: Boolean,
     default: false
+  },
+  
+  // ========== 🆕 NUEVOS CAMPOS PARA BLOQUEO POR INTENTOS ==========
+  intentos_fallidos: {
+    type: Number,
+    default: 0
+  },
+  bloqueado_hasta: {
+    type: Date,
+    default: null
   }
+  
 }, {
   timestamps: { createdAt: 'fecha_creacion', updatedAt: 'fecha_actualizacion' },
   toJSON: {
@@ -70,6 +80,11 @@ const usuarioSchema = new mongoose.Schema({
     }
   },
   toObject: { virtuals: true }
+});
+
+// ========== 🆕 VIRTUAL PARA NOMBRE COMPLETO ==========
+usuarioSchema.virtual('nombre_completo').get(function() {
+  return this.apellido ? `${this.nombre} ${this.apellido}` : this.nombre;
 });
 
 module.exports = mongoose.model('Usuario', usuarioSchema);

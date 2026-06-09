@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sanilab | Iniciar Sesión</title>
+  <link rel="stylesheet" href="/assets/css/auth.css">
+  <link rel="icon" type="image/png" href="/assets/images/Sanilab-favicon.png">
+</head>
+<body>
+  <div class="background"></div>
+
+  <main class="auth-container">
+    <div class="auth-card">
+      <img src="/assets/images/Sanilab-logo.png" alt="Sanilab Logo" class="auth-logo">
+      <h1 class="auth-title">Iniciar Sesión</h1>
+      <p class="auth-description">
+        Plataforma de innovación inclusiva que impulsa soluciones sostenibles con impacto social.
+      </p>
+
+      <form id="loginForm">
+        <label for="correo">Correo electrónico</label>
+        <input type="email" id="correo" required>
+
+        <label for="password">Contraseña</label>
+        <div class="password-wrapper">
+          <input type="password" id="password" required>
+          <button type="button" class="toggle-password" onclick="togglePassword('password', this)">👁</button>
+        </div>
+
+        <button type="submit">Ingresar</button>
+      </form>
+
+      <div class="links">
+        <a href="/pages/auth/cambiar-password.html">¿Olvidaste tu contraseña?</a>
+        <p>¿No tienes cuenta? <a href="/pages/auth/registro.html">Regístrate</a></p>
+      </div>
+
+      <small class="security">Tus datos están protegidos y no se comparten.</small>
+    </div>
+  </main>
+
+  <button class="help-button" id="helpButton" aria-label="Ayuda">?</button>
+
+  <div id="helpModal" class="help-modal-overlay">
+    <div class="help-modal-content">
+      <button class="help-close" id="helpCloseBtn">×</button>
+      <div class="help-header">
+        <div class="help-icon-large">📋</div>
+        <h2>Guía del Sistema Checklist</h2>
+      </div>
+      <div class="help-body">
+        <div class="help-section">
+          <h3>🎯 1. Objetivo</h3>
+          <p>Establecer los lineamientos para el correcto uso del sistema de Checklist de Asistencia y Autoevaluación.</p>
+        </div>
+        <div class="help-section">
+          <h3>👤 2. Registro y acceso al sistema</h3>
+          <p>Para el registro inicial, completa todos los campos del formulario de registro.</p>
+        </div>
+        <div class="help-section">
+          <h3>⏰ 3. Registro de asistencia</h3>
+          <p>Selecciona "Marcar Entrada" al inicio y "Marcar Salida" al finalizar tu turno.</p>
+        </div>
+        <div class="help-section">
+          <h3>📝 4. Autoevaluación diaria</h3>
+          <p>Completa tu autoevaluación al finalizar la jornada. Solo disponible miércoles y sábados.</p>
+        </div>
+        <div class="help-section">
+          <h3>🏆 5. Puntaje y ranking quincenal</h3>
+          <p>El puntaje se consolida cada quincena. Los 3 mejores acceden a la ruleta de incentivos.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script>
+    // ========== CONFIGURACIÓN ==========
+    const isLiveServer = window.location.port === '5500';
+    const API_BASE_URL = isLiveServer ? 'http://localhost:3000/api' : '/api';
+    axios.defaults.baseURL = API_BASE_URL;
+
+    console.log('🔧 Login - API URL:', API_BASE_URL);
+
+    // ========== FUNCIÓN MOSTRAR/OCULTAR CONTRASEÑA ==========
+    window.togglePassword = function(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = '🙈';
+      } else {
+        input.type = 'password';
+        btn.textContent = '👁';
+      }
+    };
+
+    // ========== LOGIN ==========
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const correo = document.getElementById('correo').value.trim();
+      const password = document.getElementById('password').value;
+      const btn = document.querySelector('button[type="submit"]');
+      
+      btn.disabled = true;
+      btn.textContent = 'Ingresando...';
+      
+      try {
+        const res = await axios.post('/auth/login', { correo, password });
+        
+        if (res.data.token) {
+          localStorage.setItem('token', res.data.token);
+          localStorage.setItem('usuario', JSON.stringify(res.data.usuario));
+          localStorage.setItem('usuarioid', res.data.usuario.id);
+          localStorage.setItem('areaid', res.data.usuario.areaid || '');
+          
+          console.log('✅ Login exitoso');
+          window.location.href = '/pages/home/index.html';
+        } else {
+          alert('Credenciales incorrectas');
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        
+        if (error.response?.status === 423) {
+          alert(error.response.data?.error || 'Cuenta bloqueada. Intente más tarde.');
+        } else {
+          alert(error.response?.data?.error || 'Error al iniciar sesión');
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Ingresar';
+      }
+    });
+
+    // ========== MODAL DE AYUDA ==========
+    const helpBtn = document.getElementById('helpButton');
+    const helpModal = document.getElementById('helpModal');
+    const helpClose = document.getElementById('helpCloseBtn');
+
+    if (helpBtn) {
+      helpBtn.addEventListener('click', () => {
+        helpModal.style.display = 'flex';
+      });
+    }
+
+    if (helpClose) {
+      helpClose.addEventListener('click', () => {
+        helpModal.style.display = 'none';
+      });
+    }
+
+    if (helpModal) {
+      helpModal.addEventListener('click', (e) => {
+        if (e.target === helpModal) {
+          helpModal.style.display = 'none';
+        }
+      });
+    }
+  </script>
+</body>
+</html>
