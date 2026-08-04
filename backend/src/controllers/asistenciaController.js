@@ -187,6 +187,16 @@ exports.marcarEntrada = async (req, res) => {
       estado: asistencia.estado
     });
   } catch (err) {
+    // El índice único {usuarioid, fecha} rechaza la segunda petición cuando el
+    // usuario pulsa dos veces seguidas. La primera sí se registró correctamente,
+    // así que devolvemos un mensaje claro en lugar de un 500 desconcertante.
+    if (err && err.code === 11000) {
+      console.warn('⚠️ marcarEntrada duplicada (doble clic) para usuario', req.user.id);
+      return res.status(409).json({
+        error: 'Tu entrada ya fue registrada. Actualiza la página para ver tu jornada.'
+      });
+    }
+
     console.error('❌ Error en marcarEntrada:', err);
     return res.status(500).json({ error: 'Error interno al marcar entrada' });
   }
@@ -201,8 +211,16 @@ exports.marcarSalida = async (req, res) => {
       return res.status(400).json({ error: 'Falta horaLocal en la petición' });
     }
 
+    // Limitamos la búsqueda a hoy y ayer. Sin este filtro, si quedaba una jornada
+    // antigua sin cerrar, la salida se aplicaba a ese registro viejo en lugar de
+    // al del día en curso. Se incluye ayer porque los turnos noche cruzan la medianoche.
+    const fechaHoy = getFechaHoyMidnight();
+    const fechaAyer = new Date(fechaHoy);
+    fechaAyer.setUTCDate(fechaHoy.getUTCDate() - 1);
+
     const asistencia = await Asistencia.findOne({
       usuarioid: usuarioid,
+      fecha: { $gte: fechaAyer },
       estado: { $nin: ['Jornada terminada', 'Ausente', 'Licencia'] },
       horaentrada: { $ne: null }
     }).sort({ fecha: -1 });
@@ -318,9 +336,17 @@ exports.iniciarAutoCierre = () => {
       });
 
       for (const asistencia of asistenciasAbiertas) {
-        if (!asistencia.fecha_creacion) continue;
+        // Los registros migrados del sistema anterior no tienen fecha_creacion.
+        // Antes se saltaban con `continue`, así que nunca se cerraban y quedaban
+        // abiertos para siempre. Ahora reconstruimos el inicio desde fecha + horaentrada.
+        let inicioJornada = asistencia.fecha_creacion;
 
-        const tiempoTranscurridoMs = ahora.getTime() - asistencia.fecha_creacion.getTime();
+        if (!inicioJornada) {
+          if (!asistencia.fecha || !asistencia.horaentrada) continue;
+          inicioJornada = new Date(asistencia.fecha.getTime() + timeToSeconds(asistencia.horaentrada) * 1000);
+        }
+
+        const tiempoTranscurridoMs = ahora.getTime() - inicioJornada.getTime();
         const horasTranscurridas = tiempoTranscurridoMs / (3600 * 1000);
 
         const horaEntradaNum = parseInt(asistencia.horaentrada.split(':')[0], 10);

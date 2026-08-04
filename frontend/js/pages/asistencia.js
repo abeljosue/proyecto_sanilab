@@ -193,8 +193,8 @@ function renderTramos(tramos) {
   // Mostrar en orden inverso (más reciente arriba) o normal
   tramos.forEach(tramo => {
     const row = document.createElement('tr');
-    const entrada = tramo.horaentrada ? tramo.horaentrada.substring(0, 5) : '--:--';
-    const salida = tramo.horasalida ? tramo.horasalida.substring(0, 5) : (tramo.horaentrada ? 'En curso' : '--:--');
+    const entrada = formatearHoraCorta(tramo.horaentrada);
+    const salida = tramo.horasalida ? formatearHoraCorta(tramo.horasalida) : (tramo.horaentrada ? 'En curso' : '--:--');
 
     // Calcular duración si está cerrado
     let duracion = '--';
@@ -210,6 +210,17 @@ function renderTramos(tramos) {
         `;
     tbody.appendChild(row);
   });
+}
+
+// Devuelve "HH:MM" a partir de "H:MM:SS" o "HH:MM:SS".
+// Necesario porque en BD conviven ambos formatos: los registros antiguos
+// se guardaron sin cero inicial y un substring(0,5) los mostraba como "9:15:".
+function formatearHoraCorta(hora) {
+  if (!hora) return '--:--';
+  const partes = String(hora).split(':');
+  const h = String(partes[0] || '0').padStart(2, '0');
+  const m = String(partes[1] || '0').padStart(2, '0');
+  return `${h}:${m}`;
 }
 
 function calcularDuracion(startStr, endStr) {
@@ -271,7 +282,11 @@ async function marcarSalida(tipo) {
 async function enviarAccion(endpoint, extraData, successMsg) {
   try {
     const now = new Date();
-    const horaLocal = now.toLocaleTimeString('es-ES', { hour12: false }); // HH:MM:SS format
+    // Construimos la hora manualmente en formato HH:MM:SS.
+    // toLocaleTimeString('es-ES') omite el cero inicial (devuelve "9:15:00"),
+    // lo que rompía el formateo posterior y guardaba horas inconsistentes en BD.
+    const dosDigitos = (n) => String(n).padStart(2, '0');
+    const horaLocal = `${dosDigitos(now.getHours())}:${dosDigitos(now.getMinutes())}:${dosDigitos(now.getSeconds())}`;
 
     const payload = { horaLocal, ...extraData };
 
