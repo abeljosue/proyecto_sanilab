@@ -56,6 +56,24 @@ function formatearFechaISO(iso) {
   return `${dia}/${mes}/${anio}`;
 }
 
+// Devuelve "HH:MM" tanto si el valor viene como "9:15:00" (registros antiguos,
+// guardados sin cero inicial) como "09:15:00". Antes un substring(0,5) mostraba "9:15:".
+function formatearHoraCorta(hora) {
+  if (!hora) return '--:--';
+  const partes = String(hora).split(':');
+  const h = String(partes[0] || '0').padStart(2, '0');
+  const m = String(partes[1] || '0').padStart(2, '0');
+  return `${h}:${m}`;
+}
+
+// La tardanza solo tiene sentido si el trabajador tiene horario esperado
+// configurado. Como todavía no lo tiene nadie, mostrar "0" haría creer que
+// todos llegan puntuales. Mostramos "—" para indicar que no se está midiendo.
+function formatearTardanza(minutos) {
+  if (minutos === null || minutos === undefined) return '—';
+  return Number(minutos) > 0 ? `${minutos} min` : '—';
+}
+
 async function cargarHoras() {
   const token = localStorage.getItem('token');
   const nombre = document.getElementById('buscarNombre').value.trim();
@@ -98,8 +116,8 @@ async function cargarHoras() {
     }
 
     datos.forEach(row => {
-      const horaEntrada = row.horaentrada ? row.horaentrada.substring(0, 5) : '--:--';
-      const horaSalida = row.horasalida ? row.horasalida.substring(0, 5) : '--:--';
+      const horaEntrada = formatearHoraCorta(row.horaentrada);
+      const horaSalida = formatearHoraCorta(row.horasalida);
       const totalHoras = formatearHoraTotal(row.horatotal);
       const fecha = formatearFechaISO(row.fecha);
       const colorEstado = row.estado === 'Completado' ? '#4caf50' : '#ff9800';
@@ -126,7 +144,7 @@ async function cargarHoras() {
           <td style="${isAuto ? 'color:#e65100; font-weight:bold;' : ''}">${horaSalida}${alarmaSalida}</td>
           <td><strong>${totalHoras}</strong></td>
           ${celdaAcciones}
-        <tr>
+        </tr>
       `;
     });
   } catch (error) {
@@ -177,9 +195,23 @@ async function exportarAGoogleSheets() {
   try {
     const token = localStorage.getItem('token');
 
+    // Reutilizamos los mismos filtros que la tabla de horas. Antes se exportaba
+    // siempre la colección completa, arrastrando meses de registros antiguos.
+    const params = {};
+    const nombre = document.getElementById('buscarNombre')?.value.trim();
+    const fechaDesde = document.getElementById('fechaDesde')?.value;
+    const fechaHasta = document.getElementById('fechaHasta')?.value;
+    if (nombre) params.nombre = nombre;
+    if (fechaDesde) params.fechaDesde = fechaDesde;
+    if (fechaHasta) params.fechaHasta = fechaHasta;
+
+    const hayFiltros = Object.keys(params).length > 0;
+
     Swal.fire({
       title: 'Exportando...',
-      text: 'Enviando TODOS los datos de horas a Google Sheets',
+      text: hayFiltros
+        ? 'Enviando a Google Sheets los datos que coinciden con los filtros aplicados'
+        : 'Sin filtros aplicados: se enviará el histórico completo',
       allowOutsideClick: false,
       didOpen: () => {
         Swal.showLoading();
@@ -187,6 +219,7 @@ async function exportarAGoogleSheets() {
     });
 
     const response = await axios.post('/api/admin/export-horas-sheets', {}, {
+      params,
       headers: { Authorization: `Bearer ${token}` }
     });
 
@@ -221,8 +254,26 @@ async function exportarAGoogleSheets() {
 // ========== 🆕 NUEVA FUNCIÓN: REPORTE DE ASISTENCIA ==========
 async function mostrarReporteAsistencia() {
   const token = localStorage.getItem('token');
-  const fechaInicio = document.getElementById('fechaReporteInicio')?.value;
-  const fechaFin = document.getElementById('fechaReporteFin')?.value;
+
+  // Antes se leían 'fechaReporteInicio' y 'fechaReporteFin', que NUNCA existieron
+  // en el HTML: el ?. devolvía undefined, no se enviaba filtro y el reporte
+  // mostraba siempre el histórico completo. Ahora reutiliza los campos de fecha
+  // que ya están en pantalla (los mismos que usa "Filtrar horas").
+  let fechaInicio = document.getElementById('fechaDesde')?.value;
+  let fechaFin = document.getElementById('fechaHasta')?.value;
+
+  // Sin fechas, el uso habitual es el reporte del día: por defecto, hoy.
+  let rangoDescrito;
+  if (!fechaInicio && !fechaFin) {
+    const hoy = new Date();
+    const dosDigitos = (n) => String(n).padStart(2, '0');
+    const hoyISO = `${hoy.getFullYear()}-${dosDigitos(hoy.getMonth() + 1)}-${dosDigitos(hoy.getDate())}`;
+    fechaInicio = hoyISO;
+    fechaFin = hoyISO;
+    rangoDescrito = `Hoy (${hoy.toLocaleDateString()})`;
+  } else {
+    rangoDescrito = `${fechaInicio || 'inicio'} → ${fechaFin || 'hoy'}`;
+  }
 
   try {
     Swal.fire({ title: 'Cargando reporte...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -237,13 +288,31 @@ async function mostrarReporteAsistencia() {
     if (!data.success) throw new Error('Error al cargar reporte');
 
     let html = `
+      <p style="font-size:13px; margin:0 0 10px; text-align:left;">
+        📅 Periodo: <strong>${rangoDescrito}</strong>
+        <span style="color:#666;"> — para otro rango, usa los campos de fecha del panel y vuelve a pulsar.</span>
+      </p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; font-size:13px;">
+        <span style="background:#e8f5e9; padding:6px 10px; border-radius:6px;"><strong>${data.totalRegistros}</strong> registros</span>
+        <span style="background:#e8f5e9; padding:6px 10px; border-radius:6px;"><strong>${data.totalHoras}</strong> horas totales</span>
+        <span style="background:#fff3e0; padding:6px 10px; border-radius:6px;"><strong>${data.totalJornadasSinCerrar}</strong> jornadas sin cerrar</span>
+        <span style="background:#fff3e0; padding:6px 10px; border-radius:6px;"><strong>${data.totalCierresAutomaticos}</strong> cierres automáticos</span>
+      </div>
+      <p style="font-size:12px; color:#666; text-align:left; margin-bottom:10px;">
+        ⚠️ Las filas marcadas como <strong>Auto</strong> tienen horas estimadas por el sistema porque el trabajador no marcó salida.<br>
+        ⏰ La tardanza aún no se mide: requiere configurar el horario esperado de cada trabajador.
+      </p>
       <div style="max-height:400px; overflow:auto;">
         <table style="width:100%; border-collapse:collapse;">
           <thead><tr style="background:#22c55e; color:white;"><th>Usuario</th><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Horas</th><th>Tardanza</th></tr></thead>
           <tbody>
     `;
     data.reporte.forEach(r => {
-      html += `<tr><td>${r.nombre} ${r.apellido}</td><td>${new Date(r.fecha).toLocaleDateString()}</td><td>${r.horaEntrada || '--'}</td><td>${r.horaSalida || '--'}</td><td>${r.horasTrabajadas}</td><td style="${r.tardanza > 0 ? 'color:red;' : ''}">${r.tardanza}</td></tr>`;
+      const marcaAuto = r.cierreAutomatico
+        ? ' <span style="background:#e65100; color:white; font-size:10px; padding:1px 4px; border-radius:3px;">Auto</span>'
+        : '';
+      const fondoFila = r.cierreAutomatico ? 'background-color: rgba(255, 152, 0, 0.15);' : '';
+      html += `<tr style="${fondoFila}"><td>${r.nombre} ${r.apellido}</td><td>${new Date(r.fecha).toLocaleDateString()}</td><td>${formatearHoraCorta(r.horaEntrada)}</td><td>${formatearHoraCorta(r.horaSalida)}${marcaAuto}</td><td>${r.horasTrabajadas}</td><td style="${r.tardanza > 0 ? 'color:red;' : 'color:#999;'}">${formatearTardanza(r.tardanza)}</td></tr>`;
     });
     html += `</tbody></table></div>`;
 
@@ -256,10 +325,30 @@ async function mostrarReporteAsistencia() {
 // ========== 🆕 NUEVA FUNCIÓN: ESTADÍSTICAS POR USUARIO ==========
 async function mostrarEstadisticasUsuario() {
   const token = localStorage.getItem('token');
+
+  // Antes se pedía escribir a mano el ObjectId de MongoDB (24 caracteres), lo que
+  // hacía la función inutilizable en la práctica. Ahora se elige de un desplegable.
+  let opciones = {};
+  try {
+    const listaRes = await axios.get('/api/admin/usuarios', { headers: { Authorization: `Bearer ${token}` } });
+    listaRes.data.usuarios.forEach(u => {
+      opciones[u.id] = u.rol === 'ADMIN' ? `${u.nombre} (admin)` : u.nombre;
+    });
+  } catch (error) {
+    Swal.fire('Error', 'No se pudo cargar la lista de usuarios', 'error');
+    return;
+  }
+
+  if (Object.keys(opciones).length === 0) {
+    Swal.fire('Sin usuarios', 'No hay usuarios disponibles para consultar', 'info');
+    return;
+  }
+
   const { value: usuarioId } = await Swal.fire({
     title: '📊 Estadísticas por Usuario',
-    input: 'text',
-    inputLabel: 'ID del Usuario',
+    input: 'select',
+    inputOptions: opciones,
+    inputPlaceholder: 'Selecciona un trabajador',
     showCancelButton: true,
     confirmButtonText: 'Buscar'
   });
@@ -269,20 +358,25 @@ async function mostrarEstadisticasUsuario() {
     Swal.fire({ title: 'Cargando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     const res = await axios.get(`/api/admin/estadisticas/usuario/${usuarioId}`, { headers: { Authorization: `Bearer ${token}` } });
     const stats = res.data.estadisticas;
+    const nombreUsuario = res.data.usuario?.nombre || 'Usuario';
 
     const html = `
-      <table style="width:100%;">
+      <table style="width:100%; text-align:left;">
         <tr><td>📆 Total Asistencias</td><td><strong>${stats.totalAsistencias}</strong></td></tr>
         <tr><td>🕐 Horas Totales</td><td><strong>${stats.horasTotales}</strong></td></tr>
-        <tr><td>⏰ Minutos Tardanza</td><td><strong>${stats.tardanzas}</strong></td></tr>
+        <tr><td>⏰ Minutos Tardanza</td><td><strong>${formatearTardanza(stats.tardanzas)}</strong></td></tr>
         <tr><td>✅ Días Completos</td><td><strong>${stats.diasCompletos}</strong></td></tr>
-        <tr><td>⭐ Promedio Evaluación</td><td><strong>${stats.promedioEvaluacion}/25</strong></td></tr>
+        <tr><td>📝 Autoevaluaciones</td><td><strong>${stats.totalAutoevaluaciones}</strong></td></tr>
+        <tr><td>⭐ Promedio Evaluación</td><td><strong>${stats.promedioEvaluacion}</strong></td></tr>
         <tr><td>🏆 Última Posición Ranking</td><td><strong>#${stats.ultimaPosicionRanking || 'N/A'}</strong></td></tr>
       </table>
+      <p style="font-size:12px; color:#666; margin-top:10px;">
+        ⏰ La tardanza requiere configurar el horario esperado del trabajador.
+      </p>
     `;
-    Swal.fire({ title: '📈 Estadísticas', html: html, confirmButtonText: 'Cerrar' });
+    Swal.fire({ title: `📈 ${nombreUsuario}`, html: html, confirmButtonText: 'Cerrar' });
   } catch (error) {
-    Swal.fire('Error', 'Usuario no encontrado', 'error');
+    Swal.fire('Error', error.response?.data?.error || 'No se pudieron cargar las estadísticas', 'error');
   }
 }
 
@@ -299,15 +393,64 @@ async function mostrarUsuariosBloqueados() {
       return;
     }
 
-    let html = `<div style="max-height:400px; overflow:auto;"><table style="width:100%;"><thead><tr><th>Usuario</th><th>Tiempo restante</th></tr></thead><tbody>`;
+    let html = `<div style="max-height:400px; overflow:auto;"><table style="width:100%;"><thead><tr><th>Usuario</th><th>Tiempo restante</th><th></th></tr></thead><tbody>`;
     data.usuarios.forEach(u => {
-      html += `<tr><td>${u.nombre_completo}</td><td style="color:red;">${u.minutos_restantes} min</td></tr>`;
+      html += `<tr>
+        <td>${u.nombre_completo}</td>
+        <td style="color:red;">${u.minutos_restantes} min</td>
+        <td><button class="btn-desbloquear" data-id="${u.id}" data-nombre="${u.nombre_completo}"
+              style="cursor:pointer; padding:4px 10px; background:#4caf50; color:white; border:none; border-radius:4px;">
+              🔓 Desbloquear
+            </button></td>
+      </tr>`;
     });
     html += `</tbody></table></div>`;
 
-    Swal.fire({ title: '🔒 Usuarios Bloqueados', html: html, confirmButtonText: 'Cerrar' });
+    Swal.fire({
+      title: '🔒 Usuarios Bloqueados',
+      html: html,
+      confirmButtonText: 'Cerrar',
+      didOpen: () => {
+        document.querySelectorAll('.btn-desbloquear').forEach(btn => {
+          btn.addEventListener('click', () => desbloquearUsuario(btn.dataset.id, btn.dataset.nombre));
+        });
+      }
+    });
   } catch (error) {
     Swal.fire('Error', 'No se pudo cargar la lista', 'error');
+  }
+}
+
+// Libera a un usuario bloqueado por intentos fallidos sin esperar los 5 minutos.
+async function desbloquearUsuario(id, nombre) {
+  const confirmacion = await Swal.fire({
+    title: '¿Desbloquear usuario?',
+    text: `${nombre} podrá volver a iniciar sesión de inmediato.`,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Sí, desbloquear',
+    cancelButtonText: 'Cancelar'
+  });
+
+  if (!confirmacion.isConfirmed) return;
+
+  try {
+    const token = localStorage.getItem('token');
+    const res = await axios.put(`/api/admin/seguridad/desbloquear/${id}`, {}, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    await Swal.fire({
+      icon: 'success',
+      title: 'Desbloqueado',
+      text: res.data.message,
+      timer: 1800,
+      showConfirmButton: false
+    });
+
+    mostrarUsuariosBloqueados();
+  } catch (error) {
+    Swal.fire('Error', error.response?.data?.error || 'No se pudo desbloquear', 'error');
   }
 }
 

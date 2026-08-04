@@ -28,6 +28,12 @@ router.get('/estadisticas/usuario/:usuarioId', verifyToken, verifyAdmin, adminCo
 // Listar usuarios bloqueados por intentos fallidos
 router.get('/seguridad/bloqueados', verifyToken, verifyAdmin, adminController.getUsuariosBloqueados);
 
+// Liberar manualmente a un usuario bloqueado (sin esperar los 5 minutos)
+router.put('/seguridad/desbloquear/:id', verifyToken, verifyAdmin, verifyCanEdit, adminController.desbloquearUsuario);
+
+// 👥 Lista ligera de usuarios para poblar los selectores del panel
+router.get('/usuarios', verifyToken, verifyAdmin, adminController.getListaUsuarios);
+
 // 📈 DASHBOARD (si no existe, agregar)
 // router.get('/dashboard', verifyToken, verifyAdmin, adminController.getDashboardStats);
 
