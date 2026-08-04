@@ -13,7 +13,7 @@ axios.interceptors.response.use(
       Swal.fire({
         icon: 'warning',
         title: 'Sesión Expirada ⏱️',
-        text: 'Han pasado 8 horas o tu sesión es inválida. Ingresa de nuevo.',
+        text: 'Tu sesión ha caducado o es inválida. Ingresa de nuevo.',
         confirmButtonText: 'Ir al Login',
         allowOutsideClick: false,
         allowEscapeKey: false
