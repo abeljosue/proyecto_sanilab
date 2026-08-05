@@ -126,7 +126,11 @@ exports.crearAutoevaluacion = async (req, res) => {
   try {
     console.log('📝 Datos recibidos en crearAutoevaluacion:', JSON.stringify(req.body, null, 2));
 
-    const { usuarioid, puntajetotal, mensajemotivacional, respuestas } = req.body;
+    // El autor se toma del token, no del body. Antes venía de localStorage y, si
+    // ese valor se perdía o corrompía, la autoevaluación se guardaba sin dueño
+    // y desaparecía del historial y del ranking sin ningún error visible.
+    const usuarioid = req.user.id;
+    const { puntajetotal, mensajemotivacional, respuestas } = req.body;
 
     // Generar quincena automáticamente como "YYYY-MM"
     const quincena = getMesActual();

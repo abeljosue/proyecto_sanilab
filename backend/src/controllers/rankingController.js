@@ -47,22 +47,23 @@ exports.getAllRankings = async (req, res) => {
       .map(r => {
         const usuario = r.usuarioid;
         let nombreMostrar = usuario.nombre;
-        let fotoMostrar = null;
         let avatarColor = colorDeNombre(usuario.nombre);
         let avatarInicial = usuario.nombre.charAt(0).toUpperCase();
-        
+
         if (userRole === 'ADMIN') {
           nombreMostrar = usuario.apellido ? `${usuario.nombre} ${usuario.apellido}` : usuario.nombre;
-          fotoMostrar = usuario.fondo_perfil || null;
         }
-        
+
+        // Se retiró el campo 'foto': devolvía fondo_perfil, que es la imagen de
+        // FONDO del perfil, no una foto de la persona. No existe campo de foto en
+        // el modelo Usuario y ninguna vista lo consumía. El ranking usa el avatar
+        // con inicial y color, que sí funciona.
         return {
           id: r.id,
           usuarioid: usuario._id,
           nombre: nombreMostrar,
           avatarInicial: avatarInicial,
           avatarColor: avatarColor,
-          foto: fotoMostrar,
           quincena: r.quincena,
           puntajetotal: r.puntajetotal,
           posicion: r.posicion,
@@ -91,21 +92,18 @@ exports.getRankingById = async (req, res) => {
     const usuario = ranking.usuarioid;
     
     let nombreMostrar = usuario ? usuario.nombre : 'Desconocido';
-    let fotoMostrar = null;
     let avatarInicial = usuario ? usuario.nombre.charAt(0).toUpperCase() : '?';
     let avatarColor = usuario ? colorDeNombre(usuario.nombre) : '#4caf50';
-    
+
     if (userRole === 'ADMIN' && usuario) {
       nombreMostrar = usuario.apellido ? `${usuario.nombre} ${usuario.apellido}` : usuario.nombre;
-      fotoMostrar = usuario.fondo_perfil || null;
     }
 
     const result = {
       ...ranking.toObject(),
       nombre: nombreMostrar,
       avatarInicial: avatarInicial,
-      avatarColor: avatarColor,
-      foto: fotoMostrar
+      avatarColor: avatarColor
     };
 
     if (ranking.usuarioid && ranking.usuarioid.archivado) {

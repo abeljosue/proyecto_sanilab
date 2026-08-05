@@ -26,8 +26,8 @@ exports.getEstadoRuleta = async (req, res) => {
         const hoy = getLocalDate();
         const dia = hoy.getDay(); // 0=Dom, 1=Lun, ..., 6=Sáb
 
-        // 1. Verificar que sea Sábado (día 6)
-        if (dia !== 3) { // Solo Sábados
+        // 1. Verificar que sea Sábado (getDay(): 0=Domingo ... 6=Sábado)
+        if (dia !== 6) { // Solo Sábados
             const nombres = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
             const hoyNombre = nombres[dia];
             return res.json({

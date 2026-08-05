@@ -8,7 +8,8 @@ const { verifyToken } = require('../middlewares/authMiddleware');
 // NUEVO: Endpoint de estado (requiere token)
 router.get('/estado', verifyToken, autoevaluacionController.getEstado);
 
-router.post('/', autoevaluacionController.crearAutoevaluacion);
+// Requiere token: el autor de la autoevaluación se toma del token, no del body.
+router.post('/', verifyToken, autoevaluacionController.crearAutoevaluacion);
 router.get('/', autoevaluacionController.getAllAutoevaluaciones);
 router.get('/:id', autoevaluacionController.getAutoevaluacionById);
 

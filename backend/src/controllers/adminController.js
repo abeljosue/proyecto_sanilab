@@ -1,9 +1,23 @@
+const mongoose = require('mongoose');
 const Asistencia = require('../models/Asistencia');
 const Usuario = require('../models/Usuario');
 const RankingQuincenal = require('../models/RankingQuincenal');
 const Autoevaluacion = require('../models/Autoevaluacion');
 const googleSheetsService = require('../services/googleSheetsService');
 const { getFechaHoyMidnight, getRangoHoy } = require('../utils/dateUtils');
+
+// Neutraliza los caracteres con significado especial en una expresión regular,
+// para que el texto que escribe el administrador se busque de forma literal.
+function escaparRegex(texto) {
+  return String(texto).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Busca por nombre O apellido. Antes solo miraba 'nombre', así que buscar por
+// apellido no devolvía nada y parecía que el trabajador no existía.
+function buscarUsuariosPorNombre(nombre) {
+  const patron = { $regex: escaparRegex(nombre.trim()), $options: 'i' };
+  return Usuario.find({ $or: [{ nombre: patron }, { apellido: patron }] }).select('_id');
+}
 
 // ========== EXISTENTE: OBTENER HORAS ==========
 exports.getHoras = async (req, res) => {
@@ -27,9 +41,8 @@ exports.getHoras = async (req, res) => {
     }
 
     if (nombre) {
-      const usuarios = await Usuario.find({ nombre: { $regex: nombre, $options: 'i' } });
-      const usuarioIds = usuarios.map(u => u._id);
-      filter.usuarioid = { $in: usuarioIds };
+      const usuarios = await buscarUsuariosPorNombre(nombre);
+      filter.usuarioid = { $in: usuarios.map(u => u._id) };
     }
 
     const asistencias = await Asistencia.find(filter)
@@ -79,9 +92,8 @@ exports.getPuntajes = async (req, res) => {
     let filter = {};
 
     if (nombre) {
-      const usuarios = await Usuario.find({ nombre: { $regex: nombre, $options: 'i' } });
-      const usuarioIds = usuarios.map(u => u._id);
-      filter.usuarioid = { $in: usuarioIds };
+      const usuarios = await buscarUsuariosPorNombre(nombre);
+      filter.usuarioid = { $in: usuarios.map(u => u._id) };
     }
 
     const rankings = await RankingQuincenal.find(filter)
@@ -111,15 +123,21 @@ exports.getPuntajes = async (req, res) => {
 exports.getReporteAsistencia = async (req, res) => {
   try {
     const { fechaInicio, fechaFin, usuarioId } = req.query;
-    
+
+    // Antes exigía AMBAS fechas para filtrar; si solo llegaba una, se ignoraban
+    // las dos y devolvía el histórico completo. Ahora cada extremo funciona por
+    // separado, con la misma convención horaria que getHoras.
     let query = {};
-    if (fechaInicio && fechaFin) {
-      query.fecha = { 
-        $gte: new Date(fechaInicio), 
-        $lte: new Date(fechaFin) 
-      };
+    if (fechaInicio || fechaFin) {
+      query.fecha = {};
+      if (fechaInicio) query.fecha.$gte = new Date(`${fechaInicio}T00:00:00.000Z`);
+      if (fechaFin) query.fecha.$lte = new Date(`${fechaFin}T23:59:59.999Z`);
     }
+
     if (usuarioId) {
+      if (!mongoose.Types.ObjectId.isValid(usuarioId)) {
+        return res.status(400).json({ error: 'El identificador de usuario no es válido.' });
+      }
       query.usuarioid = usuarioId;
     }
 
@@ -128,17 +146,23 @@ exports.getReporteAsistencia = async (req, res) => {
     // Calcular estadísticas
     let totalHoras = 0;
     let totalTardanzas = 0;
-    let totalFaltas = 0;
-    let totalDias = 0;
+    let totalJornadasSinCerrar = 0;
+    let totalCierresAutomaticos = 0;
 
     const reporte = asistencias.map(a => {
       const horas = (a.horas_trabajadas || 0) / 3600;
       totalHoras += horas;
       totalTardanzas += a.tardanza_minutos || 0;
-      totalDias++;
-      
+
+      // OJO: esto NO son ausencias. Cuenta jornadas que quedaron abiertas
+      // (el trabajador no marcó salida). Las ausencias reales requieren saber
+      // quién debía asistir, y eso depende de los horarios (aún no configurados).
       if (a.estado !== 'Jornada terminada') {
-        totalFaltas++;
+        totalJornadasSinCerrar++;
+      }
+
+      if (a.cierre_automatico) {
+        totalCierresAutomaticos++;
       }
 
       return {
@@ -149,7 +173,8 @@ exports.getReporteAsistencia = async (req, res) => {
         horaSalida: a.horasalida,
         horasTrabajadas: horas.toFixed(2),
         tardanza: a.tardanza_minutos || 0,
-        estado: a.estado
+        estado: a.estado,
+        cierreAutomatico: a.cierre_automatico || false
       };
     });
 
@@ -158,7 +183,8 @@ exports.getReporteAsistencia = async (req, res) => {
       totalRegistros: asistencias.length,
       totalHoras: totalHoras.toFixed(2),
       totalTardanzas,
-      totalFaltas,
+      totalJornadasSinCerrar,
+      totalCierresAutomaticos,
       reporte
     });
   } catch (error) {
@@ -172,23 +198,39 @@ exports.getEstadisticasUsuario = async (req, res) => {
   try {
     const { usuarioId } = req.params;
     const { fechaInicio, fechaFin } = req.query;
-    
-    let query = { usuarioid: usuarioId };
-    if (fechaInicio && fechaFin) {
-      query.fecha = { 
-        $gte: new Date(fechaInicio), 
-        $lte: new Date(fechaFin) 
-      };
+
+    // Sin esta validación, un id con formato incorrecto provocaba un CastError
+    // que salía como 500 genérico y parecía un fallo del servidor.
+    if (!mongoose.Types.ObjectId.isValid(usuarioId)) {
+      return res.status(400).json({ error: 'El identificador de usuario no es válido.' });
     }
-    
+
+    const usuario = await Usuario.findById(usuarioId).select('nombre apellido');
+    if (!usuario) {
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+
+    let query = { usuarioid: usuarioId };
+    let filtroFechas = null;
+    if (fechaInicio && fechaFin) {
+      filtroFechas = {
+        $gte: new Date(fechaInicio),
+        $lte: new Date(fechaFin)
+      };
+      query.fecha = filtroFechas;
+    }
+
     // Estadísticas de asistencia
     const asistencias = await Asistencia.find(query);
     const horasTotales = asistencias.reduce((sum, a) => sum + (a.horas_trabajadas || 0), 0) / 3600;
     const tardanzas = asistencias.reduce((sum, a) => sum + (a.tardanza_minutos || 0), 0);
     const diasCompletos = asistencias.filter(a => a.estado === 'Jornada terminada').length;
-    
-    // Estadísticas de autoevaluaciones
-    const autoevaluaciones = await Autoevaluacion.find({ usuarioid: usuarioId });
+
+    // El rango de fechas también debe aplicarse aquí; antes el promedio de
+    // evaluación ignoraba el filtro y no cuadraba con el resto de la ficha.
+    const queryAuto = { usuarioid: usuarioId };
+    if (filtroFechas) queryAuto.fechaevaluacion = filtroFechas;
+    const autoevaluaciones = await Autoevaluacion.find(queryAuto);
     const promedioEval = autoevaluaciones.length > 0 
       ? autoevaluaciones.reduce((sum, a) => sum + (a.puntajetotal || 0), 0) / autoevaluaciones.length 
       : 0;
@@ -199,11 +241,16 @@ exports.getEstadisticasUsuario = async (req, res) => {
     
     res.json({
       success: true,
+      usuario: {
+        id: usuario._id,
+        nombre: `${usuario.nombre} ${usuario.apellido || ''}`.trim()
+      },
       estadisticas: {
         horasTotales: horasTotales.toFixed(2),
         tardanzas,
         diasCompletos,
         totalAsistencias: asistencias.length,
+        totalAutoevaluaciones: autoevaluaciones.length,
         promedioEvaluacion: promedioEval.toFixed(1),
         ultimaPosicionRanking: ultimoRanking?.posicion || null,
         ultimoPuntajeRanking: ultimoRanking?.puntajetotal || 0
@@ -219,9 +266,11 @@ exports.getEstadisticasUsuario = async (req, res) => {
 exports.getUsuariosBloqueados = async (req, res) => {
   try {
     const ahora = new Date();
+    // $ne: true en lugar de false → también incluye los documentos donde el campo
+    // nunca se creó (archivado: undefined), como el resto de consultas del proyecto.
     const usuariosBloqueados = await Usuario.find({
       bloqueado_hasta: { $gt: ahora },
-      archivado: false
+      archivado: { $ne: true }
     }).select('nombre apellido correo bloqueado_hasta intentos_fallidos');
 
     res.json({
@@ -246,9 +295,25 @@ exports.getUsuariosBloqueados = async (req, res) => {
 // ========== EXISTENTE: EXPORTAR HORAS ==========
 exports.exportHorasSheets = async (req, res) => {
   try {
-    console.log('📊 Iniciando exportación de horas a Google Sheets...');
+    const { fechaDesde, fechaHasta, nombre } = req.query;
 
-    const asistencias = await Asistencia.find()
+    // Antes exportaba SIEMPRE la colección completa, ignorando los filtros del
+    // panel. Con meses de histórico eso arrastraba registros antiguos e inconsistentes.
+    const filter = {};
+    if (fechaDesde || fechaHasta) {
+      filter.fecha = {};
+      if (fechaDesde) filter.fecha.$gte = new Date(`${fechaDesde}T00:00:00.000Z`);
+      if (fechaHasta) filter.fecha.$lte = new Date(`${fechaHasta}T23:59:59.999Z`);
+    }
+
+    if (nombre) {
+      const usuarios = await buscarUsuariosPorNombre(nombre);
+      filter.usuarioid = { $in: usuarios.map(u => u._id) };
+    }
+
+    console.log('📊 Iniciando exportación de horas a Google Sheets...', filter);
+
+    const asistencias = await Asistencia.find(filter)
       .populate('usuarioid', 'nombre apellido')
       .sort({ fecha: -1 });
 
@@ -295,8 +360,10 @@ exports.exportHorasSheets = async (req, res) => {
 // ========== EXISTENTE: FALTANTES DEL DÍA ==========
 exports.getFaltantesHoy = async (req, res) => {
   try {
+    // Asistencia.fecha se guarda como medianoche UTC del día local (getFechaHoyMidnight),
+    // por eso aquí se compara por igualdad exacta y no por rango.
     const fechaHoy = getFechaHoyMidnight();
-    const { mostrarArchivados } = req.query;
+    const { mostrarArchivados, incluirAdmins } = req.query;
 
     const asistenciasHoy = await Asistencia.find({
       fecha: fechaHoy,
@@ -306,9 +373,17 @@ exports.getFaltantesHoy = async (req, res) => {
     const idsQueAsistieron = asistenciasHoy.map(a => a.usuarioid);
 
     let filter = {
-      rol: 'USER',
-      _id: { $nin: idsQueAsistieron }
+      _id: { $nin: idsQueAsistieron },
+      // $ne: 'NO' en lugar de 'SI' para incluir también los registros antiguos
+      // donde el campo nunca se rellenó.
+      activo: { $ne: 'NO' }
     };
+
+    // Por defecto se listan solo trabajadores. Los administradores que además
+    // fichan (caso habitual ahora) solo aparecen si se pide expresamente.
+    if (incluirAdmins !== 'true') {
+      filter.rol = 'USER';
+    }
 
     if (mostrarArchivados === 'true') {
       filter.archivado = true;
@@ -342,8 +417,12 @@ exports.getFaltantesHoy = async (req, res) => {
 // ========== EXISTENTE: FALTANTES AUTOEVALUACIÓN ==========
 exports.getFaltantesAutoevaluacionHoy = async (req, res) => {
   try {
+    // Autoevaluacion.fechaevaluacion guarda un instante concreto (getLocalDate),
+    // no una medianoche, por eso aquí se filtra por rango y no por igualdad.
+    // La diferencia con getFaltantesHoy es intencional: cada colección guarda
+    // la fecha de forma distinta. No unificar sin migrar los datos primero.
     const { inicio, fin } = getRangoHoy();
-    const { mostrarArchivados } = req.query;
+    const { mostrarArchivados, incluirAdmins } = req.query;
 
     const autoevaluacionesHoy = await Autoevaluacion.find({
       fechaevaluacion: { $gte: inicio, $lte: fin },
@@ -353,10 +432,13 @@ exports.getFaltantesAutoevaluacionHoy = async (req, res) => {
     const idsQueEvaluaron = autoevaluacionesHoy.map(a => a.usuarioid.toString());
 
     let filter = {
-      rol: 'USER',
-      activo: 'SI',
-      _id: { $nin: idsQueEvaluaron }
+      _id: { $nin: idsQueEvaluaron },
+      activo: { $ne: 'NO' }
     };
+
+    if (incluirAdmins !== 'true') {
+      filter.rol = 'USER';
+    }
 
     if (mostrarArchivados === 'true') {
       filter.archivado = true;
@@ -427,6 +509,22 @@ exports.updateHoras = async (req, res) => {
       asistencia.estado = 'Jornada terminada';
     }
 
+    // Las horas del día se recalculan sumando los tramos (ver marcarSalida). Si
+    // solo tocáramos horaentrada/horasalida, los tramos quedarían desincronizados
+    // y la próxima marcación del trabajador sobrescribiría esta corrección.
+    // Al corregir a mano, la jornada pasa a representarse como un único tramo.
+    if (asistencia.horaentrada) {
+      asistencia.tramos = [{
+        horaentrada: asistencia.horaentrada,
+        horasalida: asistencia.horasalida || undefined,
+        created_at: asistencia.tramos?.[0]?.created_at || new Date()
+      }];
+    }
+
+    // NOTA: no se recalcula tardanza_minutos porque depende del horario esperado
+    // del trabajador (HorarioTrabajador), que aún no está configurado para nadie.
+    // Pendiente para cuando se resuelva la gestión de horarios.
+
     await asistencia.save();
 
     res.json({ success: true, message: 'Horas actualizadas correctamente.', asistencia });
@@ -456,6 +554,60 @@ exports.toggleArchivarUsuario = async (req, res) => {
     });
   } catch (error) {
     console.error('Error al archivar usuario:', error);
+    res.status(500).json({ success: false, error: 'Error del servidor' });
+  }
+};
+
+// ========== DESBLOQUEAR USUARIO ==========
+// Antes solo se podía consultar quién estaba bloqueado, pero no liberarlo:
+// había que esperar los 5 minutos del bloqueo automático.
+exports.desbloquearUsuario = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, error: 'Identificador inválido.' });
+    }
+
+    const usuario = await Usuario.findById(id);
+    if (!usuario) {
+      return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    }
+
+    usuario.intentos_fallidos = 0;
+    usuario.bloqueado_hasta = null;
+    await usuario.save();
+
+    res.json({
+      success: true,
+      message: `${usuario.nombre} puede volver a iniciar sesión.`
+    });
+  } catch (error) {
+    console.error('Error al desbloquear usuario:', error);
+    res.status(500).json({ success: false, error: 'Error del servidor' });
+  }
+};
+
+// ========== LISTA DE USUARIOS PARA SELECTORES DEL PANEL ==========
+// Devuelve solo lo necesario para poblar desplegables, sin exponer datos
+// sensibles. Evita tener que escribir a mano el ObjectId en las estadísticas.
+exports.getListaUsuarios = async (req, res) => {
+  try {
+    const usuarios = await Usuario.find({ archivado: { $ne: true } })
+      .select('nombre apellido correo rol')
+      .sort({ nombre: 1, apellido: 1 });
+
+    res.json({
+      success: true,
+      usuarios: usuarios.map(u => ({
+        id: u._id,
+        nombre: `${u.nombre} ${u.apellido || ''}`.trim(),
+        correo: u.correo,
+        rol: u.rol
+      }))
+    });
+  } catch (error) {
+    console.error('Error al listar usuarios:', error);
     res.status(500).json({ success: false, error: 'Error del servidor' });
   }
 };
