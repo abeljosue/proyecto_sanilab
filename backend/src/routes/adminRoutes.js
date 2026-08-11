@@ -24,6 +24,15 @@ router.get('/reportes/asistencia', verifyToken, verifyAdmin, adminController.get
 // Estadísticas completas por usuario
 router.get('/estadisticas/usuario/:usuarioId', verifyToken, verifyAdmin, adminController.getEstadisticasUsuario);
 
+// Franjas de revisión del día y cuáles se pueden consultar ya
+// ?fecha=AAAA-MM-DD (por defecto, hoy)
+router.get('/reportes/cortes', verifyToken, verifyAdmin, adminController.getCortesDisponibles);
+
+// Texto del reporte listo para copiar y pegar (WhatsApp)
+// ?tipo=corte&corte=N  |  ?tipo=dia  |  ?tipo=periodo&fechaInicio=&fechaFin=
+// Admite ?fecha=AAAA-MM-DD para regenerar un día pasado.
+router.get('/reportes/texto', verifyToken, verifyAdmin, adminController.getReporteTexto);
+
 // 🔐 SEGURIDAD
 // Listar usuarios bloqueados por intentos fallidos
 router.get('/seguridad/bloqueados', verifyToken, verifyAdmin, adminController.getUsuariosBloqueados);

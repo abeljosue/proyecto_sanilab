@@ -4,7 +4,9 @@ const Usuario = require('../models/Usuario');
 const RankingQuincenal = require('../models/RankingQuincenal');
 const Autoevaluacion = require('../models/Autoevaluacion');
 const googleSheetsService = require('../services/googleSheetsService');
-const { getFechaHoyMidnight, getRangoHoy } = require('../utils/dateUtils');
+const { getFechaHoyMidnight, getRangoHoy, getLocalDate } = require('../utils/dateUtils');
+const turnos = require('../utils/turnos');
+const reporteTexto = require('../services/reporteTextoService');
 
 // Neutraliza los caracteres con significado especial en una expresión regular,
 // para que el texto que escribe el administrador se busque de forma literal.
@@ -145,18 +147,29 @@ exports.getReporteAsistencia = async (req, res) => {
     
     // Calcular estadísticas
     let totalHoras = 0;
+    let minutosTardanza = 0;
     let totalTardanzas = 0;
+    let totalPuntuales = 0;
     let totalJornadasSinCerrar = 0;
     let totalCierresAutomaticos = 0;
 
     const reporte = asistencias.map(a => {
       const horas = (a.horas_trabajadas || 0) / 3600;
       totalHoras += horas;
-      totalTardanzas += a.tardanza_minutos || 0;
+
+      // La puntualidad se calcula AQUÍ, no al marcar entrada. Así los registros
+      // históricos también quedan evaluados y cambiar la tolerancia recalcula
+      // los informes anteriores sin necesidad de migrar nada.
+      const evaluacion = turnos.evaluarEntrada(a.horaentrada);
+      if (evaluacion.esTardanza) {
+        totalTardanzas++;
+        minutosTardanza += evaluacion.minutosTarde;
+      } else if (evaluacion.estado === turnos.ESTADOS.PUNTUAL) {
+        totalPuntuales++;
+      }
 
       // OJO: esto NO son ausencias. Cuenta jornadas que quedaron abiertas
-      // (el trabajador no marcó salida). Las ausencias reales requieren saber
-      // quién debía asistir, y eso depende de los horarios (aún no configurados).
+      // (el trabajador no marcó salida).
       if (a.estado !== 'Jornada terminada') {
         totalJornadasSinCerrar++;
       }
@@ -172,7 +185,10 @@ exports.getReporteAsistencia = async (req, res) => {
         horaEntrada: a.horaentrada,
         horaSalida: a.horasalida,
         horasTrabajadas: horas.toFixed(2),
-        tardanza: a.tardanza_minutos || 0,
+        turno: evaluacion.corte ? `Corte ${evaluacion.corte.corte}` : null,
+        puntualidad: evaluacion.estado,
+        tardanza: evaluacion.minutosTarde,
+        esTardanza: evaluacion.esTardanza,
         estado: a.estado,
         cierreAutomatico: a.cierre_automatico || false
       };
@@ -182,9 +198,12 @@ exports.getReporteAsistencia = async (req, res) => {
       success: true,
       totalRegistros: asistencias.length,
       totalHoras: totalHoras.toFixed(2),
+      totalPuntuales,
       totalTardanzas,
+      minutosTardanza,
       totalJornadasSinCerrar,
       totalCierresAutomaticos,
+      configuracionTurnos: turnos.describirConfiguracion(),
       reporte
     });
   } catch (error) {
@@ -223,8 +242,19 @@ exports.getEstadisticasUsuario = async (req, res) => {
     // Estadísticas de asistencia
     const asistencias = await Asistencia.find(query);
     const horasTotales = asistencias.reduce((sum, a) => sum + (a.horas_trabajadas || 0), 0) / 3600;
-    const tardanzas = asistencias.reduce((sum, a) => sum + (a.tardanza_minutos || 0), 0);
     const diasCompletos = asistencias.filter(a => a.estado === 'Jornada terminada').length;
+
+    // La puntualidad se calcula por turno, no se lee de tardanza_minutos (que
+    // se quedó siempre en 0 al no existir horarios individuales).
+    let tardanzas = 0;
+    let diasConTardanza = 0;
+    for (const a of asistencias) {
+      const ev = turnos.evaluarEntrada(a.horaentrada);
+      if (ev.esTardanza) {
+        diasConTardanza++;
+        tardanzas += ev.minutosTarde;
+      }
+    }
 
     // El rango de fechas también debe aplicarse aquí; antes el promedio de
     // evaluación ignoraba el filtro y no cuadraba con el resto de la ficha.
@@ -248,6 +278,7 @@ exports.getEstadisticasUsuario = async (req, res) => {
       estadisticas: {
         horasTotales: horasTotales.toFixed(2),
         tardanzas,
+        diasConTardanza,
         diasCompletos,
         totalAsistencias: asistencias.length,
         totalAutoevaluaciones: autoevaluaciones.length,
@@ -325,6 +356,9 @@ exports.exportHorasSheets = async (req, res) => {
       const s = Math.floor(seconds % 60);
       const horatotal = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 
+      // Tardanza calculada al vuelo con los turnos, no la almacenada (siempre 0).
+      const evaluacion = turnos.evaluarEntrada(a.horaentrada);
+
       return {
         nombre: u ? u.nombre : 'Desconocido',
         apellido: u ? u.apellido : '',
@@ -332,7 +366,8 @@ exports.exportHorasSheets = async (req, res) => {
         horaentrada: a.horaentrada,
         horasalida: a.horasalida,
         horatotal: horatotal,
-        tardanza: a.tardanza_minutos || 0
+        turno: evaluacion.corte ? `Corte ${evaluacion.corte.corte}` : '',
+        tardanza: evaluacion.minutosTarde
       };
     });
 
@@ -393,6 +428,12 @@ exports.getFaltantesHoy = async (req, res) => {
 
     const queryFaltante = await Usuario.find(filter).populate('areaid', 'nombre');
 
+    // Quien no marcó está "pendiente" mientras el día siga abierto, y pasa a
+    // "ausente" una vez superada la hora de corte. En día no laborable no se
+    // espera a nadie, así que no cuenta como falta.
+    const ahora = getLocalDate();
+    const estado = turnos.estadoSinMarcar(ahora, ahora);
+
     const faltantes = queryFaltante.map(u => ({
       id: u._id,
       nombre: u.nombre,
@@ -400,12 +441,17 @@ exports.getFaltantesHoy = async (req, res) => {
       correo: u.correo,
       telefono: u.telefono || null,
       area: u.areaid ? u.areaid.nombre : '_',
-      archivado: u.archivado || false
+      archivado: u.archivado || false,
+      estado
     }));
+
     res.json({
       ok: true,
       faltantes: faltantes,
       total: faltantes.length,
+      estado,
+      esDiaLaborable: turnos.esDiaLaborable(ahora),
+      pasoHoraDeCorte: turnos.pasoHoraDeCorte(ahora),
       fecha: fechaHoy.toISOString().split('T')[0]
     });
   } catch (error) {
@@ -555,6 +601,94 @@ exports.toggleArchivarUsuario = async (req, res) => {
   } catch (error) {
     console.error('Error al archivar usuario:', error);
     res.status(500).json({ success: false, error: 'Error del servidor' });
+  }
+};
+
+// ========== TEXTO DEL REPORTE PARA WHATSAPP ==========
+// Devuelve el mensaje ya redactado para copiar y pegar. La redacción vive en
+// un servicio aparte para poder probarla sin levantar el servidor.
+exports.getReporteTexto = async (req, res) => {
+  try {
+    const { tipo, corte, fechaInicio, fechaFin, fecha, incluirAdmins } = req.query;
+    const conAdmins = incluirAdmins === 'true';
+
+    if (tipo === 'periodo') {
+      const r = await reporteTexto.generarReportePeriodo({ fechaInicio, fechaFin, incluirAdmins: conAdmins });
+      return res.json({ ok: true, tipo: 'periodo', ...r });
+    }
+
+    if (tipo && tipo !== 'dia' && tipo !== 'corte') {
+      return res.status(400).json({ ok: false, error: "El tipo debe ser 'corte', 'dia' o 'periodo'." });
+    }
+
+    // 'fecha' permite regenerar el reporte de un día anterior (por ejemplo si
+    // una noche no se envió). Sin ella se usa el día en curso.
+    let momento;
+    if (fecha) {
+      momento = new Date(`${fecha}T12:00:00`);
+      if (Number.isNaN(momento.getTime())) {
+        return res.status(400).json({ ok: false, error: 'La fecha no es válida. Formato esperado: AAAA-MM-DD.' });
+      }
+    }
+
+    if (tipo === 'corte') {
+      // No se puede generar el reporte de una franja que todavía no ha llegado.
+      const disponibles = turnos.cortesConDisponibilidad(getLocalDate(), momento || getLocalDate());
+      const estado = disponibles.find(c => String(c.id) === String(corte));
+
+      if (!estado) {
+        return res.status(400).json({ ok: false, error: `El corte "${corte}" no existe.` });
+      }
+      if (!estado.disponible) {
+        return res.status(409).json({
+          ok: false,
+          error: `El corte de las ${estado.corte} aún no está disponible.`
+        });
+      }
+
+      const r = await reporteTexto.generarReporteCorte({
+        corteId: corte,
+        incluirAdmins: conAdmins,
+        ahora: momento
+      });
+      return res.json({ ok: true, tipo: 'corte', ...r });
+    }
+
+    const r = await reporteTexto.generarReporteDelDia({ incluirAdmins: conAdmins, ahora: momento });
+    return res.json({ ok: true, tipo: 'dia', ...r });
+  } catch (error) {
+    console.error('Error al generar el texto del reporte:', error);
+    res.status(500).json({ ok: false, error: error.message });
+  }
+};
+
+// ========== CORTES DISPONIBLES PARA EL SELECTOR DE REPORTES ==========
+// El panel necesita saber qué franjas puede pedir antes de pedirlas: las de
+// hoy solo se desbloquean al llegar su hora, y las de días pasados están todas
+// disponibles. Toda la configuración sale de utils/turnos.js, así que añadir o
+// quitar cortes allí se refleja aquí sin tocar nada.
+exports.getCortesDisponibles = async (req, res) => {
+  try {
+    const { fecha } = req.query;
+
+    let dia;
+    if (fecha) {
+      dia = new Date(`${fecha}T12:00:00`);
+      if (Number.isNaN(dia.getTime())) {
+        return res.status(400).json({ ok: false, error: 'La fecha no es válida. Formato esperado: AAAA-MM-DD.' });
+      }
+    }
+
+    const ahora = getLocalDate();
+    return res.json({
+      ok: true,
+      fecha: (dia || ahora).toISOString().split('T')[0],
+      toleranciaMinutos: turnos.TOLERANCIA_MINUTOS,
+      cortes: turnos.cortesConDisponibilidad(ahora, dia || ahora)
+    });
+  } catch (error) {
+    console.error('Error al listar los cortes:', error);
+    res.status(500).json({ ok: false, error: error.message });
   }
 };
 

@@ -72,12 +72,16 @@
           </svg>
           Reanudar Jornada
         </button>
-        <button id="btnTerminarPausa" class="action-btn btn-stop" onclick="marcarSalida('fin')">
+        <!-- Deshabilitado a propósito: estando en pausa no hay ningún tramo
+             abierto, así que el servidor rechaza la petición de terminar.
+             Hay que reanudar primero. -->
+        <button id="btnTerminarPausa" class="action-btn btn-stop" onclick="marcarSalida('fin')" disabled title="Reanuda la jornada antes de terminarla">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
             <path d="M6 6h12v12H6z" />
           </svg>
           Terminar Jornada
         </button>
+        <p class="pausa-aviso">Para terminar tu jornada, pulsa <strong>Reanudar</strong> y luego <strong>Terminar</strong>.</p>
       </div>
 
       <!-- Mensaje Jornada Terminada -->

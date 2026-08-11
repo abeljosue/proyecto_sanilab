@@ -2,6 +2,49 @@ const Asistencia = require('../models/Asistencia');
 const HorarioTrabajador = require('../models/HorarioTrabajador');
 const { getFechaHoyMidnight, getLocalDate } = require('../utils/dateUtils');
 
+// ========== LÍMITES DEL CIERRE AUTOMÁTICO ==========
+// Cuando alguien se deja la jornada abierta, el sistema la cierra por él y le
+// asigna estas horas. Estaba en 10, pero hay personal cuyo día abarca hasta 14
+// horas con una pausa larga en medio (turno partido de mañana y noche), y se
+// les cerraba la jornada mientras seguían trabajando.
+//
+// El valor se ASIGNA tal cual, no se suma a lo ya trabajado. Es una estimación
+// de contingencia, no una medición: las jornadas cerradas así se marcan con
+// `cierre_automatico` y el panel las señala para poder corregirlas a mano.
+//
+// Estaba duplicado en dos sitios (el motor periódico y el cierre de la jornada
+// del día anterior) y podían quedar desincronizados. Ahora sale de aquí.
+const HORAS_MAXIMAS_JORNADA = 12;
+
+// Los turnos de noche no se cierran a las 12 horas si eso cruza la mañana
+// siguiente: se cortan a las 07:00.
+const HORA_CORTE_NOCTURNO = 7;
+
+// A partir de esta hora de entrada, la jornada se considera nocturna.
+const HORA_INICIO_NOCTURNO = 18;
+
+/**
+ * Horas que se le asignan a una jornada que hubo que cerrar automáticamente.
+ * Las nocturnas se recortan para que no invadan la mañana siguiente.
+ */
+function limiteHorasJornada(horaEntrada) {
+  const horaEntradaNum = parseInt(String(horaEntrada).split(':')[0], 10) || 0;
+  if (horaEntradaNum >= HORA_INICIO_NOCTURNO) {
+    const horasHasta7AM = (24 - horaEntradaNum) + HORA_CORTE_NOCTURNO;
+    return Math.min(HORAS_MAXIMAS_JORNADA, horasHasta7AM);
+  }
+  return HORAS_MAXIMAS_JORNADA;
+}
+
+/** "08:00:00" + N horas -> "20:00:00", dando la vuelta a medianoche si hace falta. */
+function horaSalidaTrasLimite(horaEntrada, limiteHoras) {
+  const salidaSeconds = timeToSeconds(horaEntrada) + (limiteHoras * 3600);
+  const h = Math.floor((salidaSeconds % 86400) / 3600);
+  const m = Math.floor((salidaSeconds % 3600) / 60);
+  const s = Math.floor(salidaSeconds % 60);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 function calcularMinutosTarde(horaEsperada, horaActual) {
   const [hE, mE] = horaEsperada.split(':').map(Number);
   const [hA, mA] = horaActual.split(':').map(Number);
@@ -89,29 +132,9 @@ exports.marcarEntrada = async (req, res) => {
     if (jornadaAnterior) {
       console.log(`🌙 Auto-cerrando jornada anterior del usuario ${usuarioid} (fecha: ${jornadaAnterior.fecha})`);
 
-      const startSeconds = timeToSeconds(jornadaAnterior.horaentrada);
-      const horaEntradaNum = parseInt(jornadaAnterior.horaentrada.split(':')[0], 10);
-
-      let horaSalidaGenerada;
-      let segundosTrabajados;
-
-      if (horaEntradaNum >= 18) {
-        const horasHasta7AM = (24 - horaEntradaNum) + 7;
-        const limiteHoras = Math.min(10, horasHasta7AM);
-        segundosTrabajados = limiteHoras * 3600;
-        const salidaSeconds = startSeconds + (limiteHoras * 3600);
-        const h = Math.floor((salidaSeconds % 86400) / 3600);
-        const m = Math.floor((salidaSeconds % 3600) / 60);
-        const s = Math.floor(salidaSeconds % 60);
-        horaSalidaGenerada = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-      } else {
-        segundosTrabajados = 10 * 3600;
-        const salidaSeconds = startSeconds + (10 * 3600);
-        const h = Math.floor((salidaSeconds % 86400) / 3600);
-        const m = Math.floor((salidaSeconds % 3600) / 60);
-        const s = Math.floor(salidaSeconds % 60);
-        horaSalidaGenerada = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-      }
+      const limiteHoras = limiteHorasJornada(jornadaAnterior.horaentrada);
+      const horaSalidaGenerada = horaSalidaTrasLimite(jornadaAnterior.horaentrada, limiteHoras);
+      const segundosTrabajados = limiteHoras * 3600;
 
       const tramoAbierto = jornadaAnterior.tramos.find(t => !t.horasalida);
       if (tramoAbierto) {
@@ -159,6 +182,24 @@ exports.marcarEntrada = async (req, res) => {
       });
     } else {
       asistencia.estado = 'En jornada';
+
+      // ⚠️ NO LIMPIAR `asistencia.horasalida` AQUÍ. Parece un descuido y no lo es.
+      //
+      // Al pausar se rellena `horasalida`, y el motor de auto-cierre solo busca
+      // registros donde ese campo esté vacío. Mantenerlo relleno al reanudar es
+      // lo que impide que se cierre la jornada de quien trabaja en dos tramos
+      // separados por un hueco largo.
+      //
+      // Comprobado con los horarios reales: incluso con el límite en 12 horas,
+      // limpiarlo cerraría a Christian Medina (09:00–23:00) a las 21:00 y a
+      // Miguel Fernando (08:00–21:00) a las 20:00, MIENTRAS SIGUEN TRABAJANDO.
+      //
+      // El arreglo correcto no es limpiar el campo: es que el auto-cierre mida
+      // cuánto lleva abierto el TRAMO ACTUAL en vez de cuánto lleva abierto el
+      // día desde la primera entrada. Hasta que eso se haga, esto se queda.
+      //
+      // Efecto secundario conocido: el panel muestra "Completado" a quien está
+      // en su segundo tramo, porque deduce el estado de `horasalida`.
     }
 
     const tramoAbierto = asistencia.tramos.find(t => !t.horasalida);
@@ -319,9 +360,6 @@ exports.obtenerEstadoActual = async (req, res) => {
 // MOTOR DE AUTO-CIERRE: CRON JOB SIMULADO
 // ==========================================
 exports.iniciarAutoCierre = () => {
-  const HORAS_MAXIMAS = 10;
-  const HORA_CORTE_NOCTURNO = 7;
-
   setInterval(async () => {
     try {
       const ahora = getLocalDate();
@@ -350,26 +388,13 @@ exports.iniciarAutoCierre = () => {
         const horasTranscurridas = tiempoTranscurridoMs / (3600 * 1000);
 
         const horaEntradaNum = parseInt(asistencia.horaentrada.split(':')[0], 10);
-        const esNocturno = horaEntradaNum >= 18;
-
-        let limiteHoras;
-        if (esNocturno) {
-          const horasHasta7AM = (24 - horaEntradaNum) + HORA_CORTE_NOCTURNO;
-          limiteHoras = Math.min(HORAS_MAXIMAS, horasHasta7AM);
-        } else {
-          limiteHoras = HORAS_MAXIMAS;
-        }
+        const esNocturno = horaEntradaNum >= HORA_INICIO_NOCTURNO;
+        const limiteHoras = limiteHorasJornada(asistencia.horaentrada);
 
         if (horasTranscurridas >= limiteHoras) {
           console.log(`⏱️ Auto-cerrando jornada → Usuario: ${asistencia.usuarioid} | Entrada: ${asistencia.horaentrada} | Límite: ${limiteHoras}h ${esNocturno ? '(NOCTURNO)' : '(DIURNO)'}`);
 
-          const startSeconds = timeToSeconds(asistencia.horaentrada);
-          const salidaIdealSeconds = startSeconds + (limiteHoras * 3600);
-
-          const h = Math.floor((salidaIdealSeconds % 86400) / 3600);
-          const m = Math.floor((salidaIdealSeconds % 3600) / 60);
-          const s = Math.floor(salidaIdealSeconds % 60);
-          const horaSalidaGenerada = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+          const horaSalidaGenerada = horaSalidaTrasLimite(asistencia.horaentrada, limiteHoras);
 
           const tramoAbierto = asistencia.tramos.find(t => !t.horasalida);
           if (tramoAbierto) {

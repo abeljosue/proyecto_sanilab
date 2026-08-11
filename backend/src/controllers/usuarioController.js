@@ -26,7 +26,11 @@ exports.getUsuarioById = async (req, res) => {
 
 exports.createUsuario = async (req, res) => {
   try {
-    const { correo, password, nombre, apellido, areaid, activo, genero, cumpleanos } = req.body;
+    // 'telefono' llegaba del formulario desde abril de 2026 pero no se leía
+    // aquí, así que se descartaba en silencio: todos los usuarios registrados
+    // por el formulario quedaron con el campo vacío. El commit que añadió el
+    // teléfono lo hizo en authController.registro, que no lo llama nadie.
+    const { correo, password, nombre, apellido, areaid, activo, genero, cumpleanos, telefono } = req.body;
 
     if (!correo || !password || !nombre || !apellido || !areaid || !genero || !cumpleanos) {
       return res.status(400).json({ error: 'Todos los campos son obligatorios' });
@@ -62,6 +66,9 @@ exports.createUsuario = async (req, res) => {
       areaid, // ObjectId
       genero: generoMapeado,
       cumpleanos,
+      // Se guarda solo con dígitos para que sea comparable y utilizable tal cual.
+      // No es obligatorio: exigirlo ahora dejaría fuera a quien no lo rellene.
+      telefono: telefono ? String(telefono).replace(/\D/g, '') : null,
       activo: activoRaw,
       rol: 'USER'
     });
