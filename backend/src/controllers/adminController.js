@@ -50,7 +50,7 @@ exports.getHoras = async (req, res) => {
     const asistencias = await Asistencia.find(filter)
       .populate({
         path: 'usuarioid',
-        select: 'nombre apellido areaid',
+        select: 'nombre apellido areaid telefono',
         populate: { path: 'areaid', select: 'nombre' }
       })
       .sort({ fecha: -1 });
@@ -64,13 +64,27 @@ exports.getHoras = async (req, res) => {
       const m = Math.floor((seconds % 3600) / 60);
       const s = Math.floor(seconds % 60);
       const horatotal = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-      const estado = a.horasalida ? 'Completado' : 'En Curso';
+
+      // El estado se LEE del registro, no se deduce de 'horasalida'.
+      //
+      // Antes era `a.horasalida ? 'Completado' : 'En Curso'`, y al pausar la
+      // jornada se rellena 'horasalida', así que quien estaba en pausa (o en su
+      // segundo tramo) aparecía como "Completado" aunque siguiera trabajando.
+      //
+      // La tabla solo distingue dos situaciones, así que 'En Pausa' y
+      // 'En jornada' se muestran igual: la jornada no ha terminado.
+      // No hace falta tocar la base: el campo 'estado' ya existe y ya guarda
+      // el valor correcto.
+      const jornadaCerrada = a.estado === 'Jornada terminada';
 
       return {
         _id: a._id,
         nombre: nombreCompleto,
         area: areaNombre,
-        estado: estado,
+        telefono: (u && u.telefono) ? u.telefono : null,
+        estado: jornadaCerrada ? 'Completado' : 'En curso',
+        estadoReal: a.estado,
+        enPausa: a.estado === 'En Pausa',
         fecha: a.fecha.toISOString().split('T')[0],
         horaentrada: a.horaentrada,
         horasalida: a.horasalida,
@@ -727,22 +741,126 @@ exports.desbloquearUsuario = async (req, res) => {
 // sensibles. Evita tener que escribir a mano el ObjectId en las estadísticas.
 exports.getListaUsuarios = async (req, res) => {
   try {
-    const usuarios = await Usuario.find({ archivado: { $ne: true } })
-      .select('nombre apellido correo rol')
+    // Por defecto se ocultan los archivados, como en el resto del panel.
+    // La vista de gestión de usuarios los pide con ?incluirArchivados=true
+    // para poder restaurarlos.
+    const incluirArchivados = req.query.incluirArchivados === 'true';
+    const filtro = incluirArchivados ? {} : { archivado: { $ne: true } };
+
+    const usuarios = await Usuario.find(filtro)
+      .select('nombre apellido correo rol telefono areaid activo archivado')
+      .populate('areaid', 'nombre')
       .sort({ nombre: 1, apellido: 1 });
 
     res.json({
       success: true,
+      // 'sinTelefono' permite al panel destacar de un vistazo a quienes perdieron
+      // el dato por el fallo del registro (el formulario lo pedía y el backend
+      // lo descartaba). Son los que hay que rellenar a mano.
+      sinTelefono: usuarios.filter(u => !u.telefono).length,
       usuarios: usuarios.map(u => ({
         id: u._id,
+        // 'nombre' se mantiene como nombre completo para no romper el
+        // desplegable de estadísticas, que ya lo consumía así.
         nombre: `${u.nombre} ${u.apellido || ''}`.trim(),
+        nombrePila: u.nombre,
+        apellido: u.apellido || '',
         correo: u.correo,
-        rol: u.rol
+        rol: u.rol,
+        telefono: u.telefono || '',
+        areaId: u.areaid ? u.areaid._id : null,
+        area: u.areaid ? u.areaid.nombre : 'Sin área',
+        activo: u.activo,
+        archivado: u.archivado || false
       }))
     });
   } catch (error) {
     console.error('Error al listar usuarios:', error);
     res.status(500).json({ success: false, error: 'Error del servidor' });
+  }
+};
+
+// ========== ACTUALIZAR DATOS DE UN USUARIO ==========
+// Pensado sobre todo para rellenar los teléfonos que se perdieron, pero sirve
+// para corregir cualquier dato de contacto sin entrar a la base de datos.
+//
+// Solo se aceptan campos QUE YA EXISTEN en el modelo Usuario: no hace falta
+// ninguna migración ni tocar el esquema. El correo y la contraseña quedan
+// fuera a propósito — cambiar el correo rompería el acceso del trabajador, y
+// la contraseña tiene su propio flujo.
+const CAMPOS_EDITABLES = ['nombre', 'apellido', 'telefono', 'areaid', 'genero', 'cumpleanos'];
+
+exports.updateUsuario = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, error: 'Identificador inválido.' });
+    }
+
+    const usuario = await Usuario.findById(id);
+    if (!usuario) {
+      return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    }
+
+    const cambios = [];
+
+    for (const campo of CAMPOS_EDITABLES) {
+      if (!(campo in req.body)) continue;
+      let valor = req.body[campo];
+
+      if (campo === 'telefono') {
+        // Se guarda solo con dígitos, igual que en el registro, para que los
+        // números queden comparables vengan como vengan escritos.
+        valor = valor ? String(valor).replace(/\D/g, '') : null;
+        if (valor && valor.length < 6) {
+          return res.status(400).json({ success: false, error: 'El teléfono es demasiado corto.' });
+        }
+      }
+
+      if (campo === 'areaid') {
+        if (valor && !mongoose.Types.ObjectId.isValid(valor)) {
+          return res.status(400).json({ success: false, error: 'El área indicada no es válida.' });
+        }
+        valor = valor || null;
+      }
+
+      if (campo === 'nombre') {
+        valor = String(valor || '').trim();
+        if (!valor) {
+          return res.status(400).json({ success: false, error: 'El nombre no puede quedar vacío.' });
+        }
+      }
+
+      if (campo === 'genero' && valor && !['Masculino', 'Femenino', 'Otro'].includes(valor)) {
+        return res.status(400).json({ success: false, error: 'Género inválido.' });
+      }
+
+      if (String(usuario[campo] ?? '') !== String(valor ?? '')) {
+        cambios.push(campo);
+        usuario[campo] = valor;
+      }
+    }
+
+    if (cambios.length === 0) {
+      return res.json({ success: true, message: 'No había nada que cambiar.', cambios: [] });
+    }
+
+    await usuario.save();
+
+    res.json({
+      success: true,
+      message: `Actualizado: ${cambios.join(', ')}.`,
+      cambios,
+      usuario: {
+        id: usuario._id,
+        nombre: `${usuario.nombre} ${usuario.apellido || ''}`.trim(),
+        telefono: usuario.telefono || ''
+      }
+    });
+  } catch (error) {
+    console.error('Error al actualizar usuario:', error);
+    res.status(500).json({ success: false, error: error.message || 'Error del servidor' });
   }
 };
 
