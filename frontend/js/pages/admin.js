@@ -66,12 +66,23 @@ function formatearHoraCorta(hora) {
   return `${h}:${m}`;
 }
 
-// La tardanza solo tiene sentido si el trabajador tiene horario esperado
-// configurado. Como todavía no lo tiene nadie, mostrar "0" haría creer que
-// todos llegan puntuales. Mostramos "—" para indicar que no se está midiendo.
-function formatearTardanza(minutos) {
+// La tardanza se calcula por turno en el servidor. Se muestran los minutos solo
+// cuando superan la tolerancia; llegar unos minutos tarde dentro del margen se
+// considera puntual y no debe destacarse como incidencia.
+function formatearTardanza(minutos, esTardanza) {
   if (minutos === null || minutos === undefined) return '—';
-  return Number(minutos) > 0 ? `${minutos} min` : '—';
+  if (esTardanza) return `${minutos} min`;
+  return Number(minutos) > 0 ? `+${minutos} min (en tolerancia)` : '—';
+}
+
+// Resumen corto de cómo se mide la puntualidad, para explicarlo en el reporte.
+// Ya no hay horarios ni turnos con hora de entrada: la regla es el minuto.
+function describirTurnos(config) {
+  if (!config || !Array.isArray(config.cortes) || config.cortes.length === 0) {
+    return 'sin cortes configurados';
+  }
+  const lista = config.cortes.map(c => c.corte).join(' · ');
+  return `puntual si marca dentro de los primeros ${config.toleranciaMinutos} min de su hora — cortes: ${lista}`;
 }
 
 async function cargarHoras() {
@@ -295,16 +306,19 @@ async function mostrarReporteAsistencia() {
       <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; font-size:13px;">
         <span style="background:#e8f5e9; padding:6px 10px; border-radius:6px;"><strong>${data.totalRegistros}</strong> registros</span>
         <span style="background:#e8f5e9; padding:6px 10px; border-radius:6px;"><strong>${data.totalHoras}</strong> horas totales</span>
+        <span style="background:#e8f5e9; padding:6px 10px; border-radius:6px;">🟢 <strong>${data.totalPuntuales}</strong> puntuales</span>
+        <span style="background:#fff8e1; padding:6px 10px; border-radius:6px;">🟡 <strong>${data.totalTardanzas}</strong> tardanzas</span>
         <span style="background:#fff3e0; padding:6px 10px; border-radius:6px;"><strong>${data.totalJornadasSinCerrar}</strong> jornadas sin cerrar</span>
         <span style="background:#fff3e0; padding:6px 10px; border-radius:6px;"><strong>${data.totalCierresAutomaticos}</strong> cierres automáticos</span>
       </div>
       <p style="font-size:12px; color:#666; text-align:left; margin-bottom:10px;">
         ⚠️ Las filas marcadas como <strong>Auto</strong> tienen horas estimadas por el sistema porque el trabajador no marcó salida.<br>
-        ⏰ La tardanza aún no se mide: requiere configurar el horario esperado de cada trabajador.
+        ⏰ Sin horarios individuales: ${describirTurnos(data.configuracionTurnos)}.<br>
+        La columna de tardanza indica cuántos minutos pasó del margen dentro de su hora, no respecto a un horario asignado.
       </p>
       <div style="max-height:400px; overflow:auto;">
         <table style="width:100%; border-collapse:collapse;">
-          <thead><tr style="background:#22c55e; color:white;"><th>Usuario</th><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Horas</th><th>Tardanza</th></tr></thead>
+          <thead><tr style="background:#22c55e; color:white;"><th>Usuario</th><th>Fecha</th><th>Turno</th><th>Entrada</th><th>Salida</th><th>Horas</th><th>Tardanza</th></tr></thead>
           <tbody>
     `;
     data.reporte.forEach(r => {
@@ -312,7 +326,8 @@ async function mostrarReporteAsistencia() {
         ? ' <span style="background:#e65100; color:white; font-size:10px; padding:1px 4px; border-radius:3px;">Auto</span>'
         : '';
       const fondoFila = r.cierreAutomatico ? 'background-color: rgba(255, 152, 0, 0.15);' : '';
-      html += `<tr style="${fondoFila}"><td>${r.nombre} ${r.apellido}</td><td>${new Date(r.fecha).toLocaleDateString()}</td><td>${formatearHoraCorta(r.horaEntrada)}</td><td>${formatearHoraCorta(r.horaSalida)}${marcaAuto}</td><td>${r.horasTrabajadas}</td><td style="${r.tardanza > 0 ? 'color:red;' : 'color:#999;'}">${formatearTardanza(r.tardanza)}</td></tr>`;
+      const estiloTardanza = r.esTardanza ? 'color:#c62828; font-weight:bold;' : 'color:#999;';
+      html += `<tr style="${fondoFila}"><td>${r.nombre} ${r.apellido}</td><td>${new Date(r.fecha).toLocaleDateString()}</td><td>${r.turno || '—'}</td><td>${formatearHoraCorta(r.horaEntrada)}</td><td>${formatearHoraCorta(r.horaSalida)}${marcaAuto}</td><td>${r.horasTrabajadas}</td><td style="${estiloTardanza}">${formatearTardanza(r.tardanza, r.esTardanza)}</td></tr>`;
     });
     html += `</tbody></table></div>`;
 
@@ -364,14 +379,14 @@ async function mostrarEstadisticasUsuario() {
       <table style="width:100%; text-align:left;">
         <tr><td>📆 Total Asistencias</td><td><strong>${stats.totalAsistencias}</strong></td></tr>
         <tr><td>🕐 Horas Totales</td><td><strong>${stats.horasTotales}</strong></td></tr>
-        <tr><td>⏰ Minutos Tardanza</td><td><strong>${formatearTardanza(stats.tardanzas)}</strong></td></tr>
+        <tr><td>⏰ Tardanzas</td><td><strong>${stats.diasConTardanza} días (${stats.tardanzas} min)</strong></td></tr>
         <tr><td>✅ Días Completos</td><td><strong>${stats.diasCompletos}</strong></td></tr>
         <tr><td>📝 Autoevaluaciones</td><td><strong>${stats.totalAutoevaluaciones}</strong></td></tr>
         <tr><td>⭐ Promedio Evaluación</td><td><strong>${stats.promedioEvaluacion}</strong></td></tr>
         <tr><td>🏆 Última Posición Ranking</td><td><strong>#${stats.ultimaPosicionRanking || 'N/A'}</strong></td></tr>
       </table>
       <p style="font-size:12px; color:#666; margin-top:10px;">
-        ⏰ La tardanza requiere configurar el horario esperado del trabajador.
+        ⏰ La tardanza se calcula comparando la marcación con la hora de su turno.
       </p>
     `;
     Swal.fire({ title: `📈 ${nombreUsuario}`, html: html, confirmButtonText: 'Cerrar' });
@@ -453,6 +468,294 @@ async function desbloquearUsuario(id, nombre) {
     Swal.fire('Error', error.response?.data?.error || 'No se pudo desbloquear', 'error');
   }
 }
+
+// ==========================================================================
+//  REPORTES PARA WHATSAPP
+//  El texto lo redacta el servidor; aquí solo se muestra y se copia.
+//  Un único botón abre el selector de franjas; desde ahí se entra a cada
+//  reporte. Antes eran dos botones sueltos en el panel.
+// ==========================================================================
+
+function escaparHtml(texto) {
+  return String(texto ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * Copia texto al portapapeles y avisa en el propio botón.
+ * `navigator.clipboard` exige contexto seguro (https o localhost). Cuando no
+ * está disponible se recurre a un textarea temporal en lugar de fallar.
+ */
+async function copiarAlPortapapeles(texto, boton) {
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(texto);
+    ok = true;
+  } catch (e) {
+    try {
+      const tmp = document.createElement('textarea');
+      tmp.value = texto;
+      tmp.style.position = 'fixed';
+      tmp.style.opacity = '0';
+      document.body.appendChild(tmp);
+      tmp.select();
+      ok = document.execCommand('copy');
+      document.body.removeChild(tmp);
+    } catch (e2) {
+      ok = false;
+    }
+  }
+
+  if (boton) {
+    const original = boton.dataset.textoOriginal || boton.textContent;
+    boton.dataset.textoOriginal = original;
+    boton.textContent = ok ? '✓ Copiado' : '✗ Copia manual';
+    boton.style.opacity = '0.75';
+    setTimeout(() => {
+      boton.textContent = original;
+      boton.style.opacity = '1';
+    }, 1800);
+  }
+
+  return ok;
+}
+
+/** Deja preparados todos los botones [data-copiar] de un modal ya abierto. */
+function activarBotonesCopiar(contenedor, textos) {
+  contenedor.querySelectorAll('[data-copiar]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      copiarAlPortapapeles(textos[btn.dataset.copiar] || '', btn);
+    });
+  });
+}
+
+/** Fecha del reporte: usa "Desde" del panel si está puesta; si no, hoy. */
+function fechaDelReporte() {
+  const desde = document.getElementById('fechaDesde')?.value;
+  return desde || '';
+}
+
+// ---------- Selector de franjas ----------
+
+async function mostrarSelectorReportes() {
+  const token = localStorage.getItem('token');
+  const fecha = fechaDelReporte();
+
+  try {
+    Swal.fire({ title: 'Cargando franjas...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    const res = await axios.get('/api/admin/reportes/cortes', {
+      params: fecha ? { fecha } : {},
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    const cortes = res.data.cortes || [];
+    const etiquetaFecha = fecha ? `del ${fecha}` : 'de hoy';
+
+    const filas = cortes.map(c => {
+      if (!c.disponible) {
+        return `
+          <div style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid #eee; border-radius:8px; margin-bottom:6px; background:#fafafa; color:#999;">
+            <span style="font-size:18px;">🔒</span>
+            <div style="flex:1; text-align:left;">
+              <strong>${c.corte}</strong> · franja ${c.ventana}
+              <div style="font-size:11.5px;">Disponible a las ${c.corte}</div>
+            </div>
+          </div>`;
+      }
+      const aviso = c.completo
+        ? ''
+        : '<div style="font-size:11.5px; color:#b45309;">⚠️ La franja sigue abierta: pueden faltar rezagados</div>';
+      return `
+        <div style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid #d7ece7; border-radius:8px; margin-bottom:6px; background:#f4fbf9;">
+          <span style="font-size:18px;">🔔</span>
+          <div style="flex:1; text-align:left;">
+            <strong>${c.corte}</strong> · franja ${c.ventana}
+            ${aviso}
+          </div>
+          <button type="button" data-corte="${c.id}"
+            style="background:#128C7E; color:#fff; border:none; padding:7px 14px; border-radius:6px; cursor:pointer; font-weight:bold;">Ver</button>
+        </div>`;
+    }).join('');
+
+    await Swal.fire({
+      title: '💬 Reportes para WhatsApp',
+      html: `
+        <p style="font-size:12.5px; color:#666; margin:0 0 10px; text-align:left;">
+          Franjas ${etiquetaFecha}. Cada corte cubre desde el anterior, así que nadie
+          se pierde: quien llega tarde a una franja aparece en la siguiente.
+          Para otro día, pon la fecha en el campo <em>Desde</em> del panel.
+        </p>
+        <div style="max-height:300px; overflow-y:auto;">${filas}</div>
+        <hr style="margin:14px 0; border:none; border-top:1px solid #eee;">
+        <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
+          <button type="button" data-tipo="dia"
+            style="background:#075E54; color:#fff; border:none; padding:9px 16px; border-radius:6px; cursor:pointer;">📋 Resumen del día</button>
+          <button type="button" data-tipo="periodo"
+            style="background:#075E54; color:#fff; border:none; padding:9px 16px; border-radius:6px; cursor:pointer;">📊 Resumen del periodo</button>
+        </div>
+      `,
+      width: '620px',
+      showConfirmButton: false,
+      showCloseButton: true,
+      didOpen: () => {
+        const popup = Swal.getPopup();
+        popup.querySelectorAll('[data-corte]').forEach(btn => {
+          btn.addEventListener('click', () => mostrarReporteCorte(btn.dataset.corte, fecha));
+        });
+        popup.querySelectorAll('[data-tipo]').forEach(btn => {
+          btn.addEventListener('click', () => mostrarReporteTexto(btn.dataset.tipo));
+        });
+      }
+    });
+  } catch (error) {
+    Swal.fire('Error', error.response?.data?.error || 'No se pudieron cargar las franjas', 'error');
+  }
+}
+
+// ---------- Reporte de una franja ----------
+
+async function mostrarReporteCorte(corteId, fecha) {
+  const token = localStorage.getItem('token');
+
+  try {
+    Swal.fire({ title: 'Generando reporte...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    const params = { tipo: 'corte', corte: corteId };
+    if (fecha) params.fecha = fecha;
+
+    const res = await axios.get('/api/admin/reportes/texto', {
+      params,
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    const d = res.data;
+    const textos = { puntuales: d.textoPuntuales || '', sinMarcar: d.textoSinMarcar || '' };
+
+    // Cada tardanza es un mensaje independiente: gerencia pidió poder
+    // reenviarlas una por una, no como un bloque.
+    const tardanzas = Array.isArray(d.tardanzas) ? d.tardanzas : [];
+    tardanzas.forEach((t, i) => { textos[`t${i}`] = t.texto; });
+
+    const bloqueTardanzas = tardanzas.length === 0
+      ? '<p style="font-size:13px; color:#2e7d32; margin:0;">✅ Ninguna tardanza en esta franja.</p>'
+      : tardanzas.map((t, i) => `
+          <div style="border:1px solid #ffe0b2; background:#fff8e1; border-radius:8px; padding:10px 12px; margin-bottom:8px; display:flex; gap:10px; align-items:center;">
+            <div style="flex:1; text-align:left; font-size:13px; line-height:1.5;">
+              <strong>${escaparHtml(t.nombre)}</strong><br>
+              <span style="color:#666;">${escaparHtml(t.area)} · ${escaparHtml(t.telefono)}</span><br>
+              <span style="color:#b45309;">Marcó a las <strong>${escaparHtml(t.hora)}</strong></span>
+            </div>
+            <button type="button" data-copiar="t${i}"
+              style="background:#f59e0b; color:#fff; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; white-space:nowrap;">📋 Copiar</button>
+          </div>`).join('');
+
+    const bloqueSinMarcar = textos.sinMarcar
+      ? `
+        <h4 style="text-align:left; margin:16px 0 6px; font-size:14px;">⏳ Sin marcar (${d.resumen.sinMarcar})</h4>
+        <textarea readonly style="width:100%; height:110px; font-family:monospace; font-size:12px; line-height:1.4; padding:10px; border:1px solid #ccc; border-radius:8px; white-space:pre;">${escaparHtml(textos.sinMarcar)}</textarea>
+        <button type="button" data-copiar="sinMarcar"
+          style="background:#6b7280; color:#fff; border:none; padding:7px 14px; border-radius:6px; cursor:pointer; margin-top:6px;">📋 Copiar lista</button>`
+      : '';
+
+    await Swal.fire({
+      title: `🔔 Corte de las ${d.corte.corte}`,
+      html: `
+        <p style="font-size:12.5px; color:#666; margin:0 0 10px; text-align:left;">
+          Franja ${d.corte.ventana} · ${d.fecha} —
+          <strong>${d.resumen.puntuales}</strong> a tiempo,
+          <strong>${d.resumen.tardanzas}</strong> con tardanza.
+        </p>
+
+        <h4 style="text-align:left; margin:0 0 6px; font-size:14px;">✅ Entraron a tiempo (${d.resumen.puntuales})</h4>
+        <textarea readonly style="width:100%; height:190px; font-family:monospace; font-size:12px; line-height:1.4; padding:10px; border:1px solid #ccc; border-radius:8px; white-space:pre;">${escaparHtml(textos.puntuales)}</textarea>
+        <button type="button" data-copiar="puntuales"
+          style="background:#128C7E; color:#fff; border:none; padding:7px 14px; border-radius:6px; cursor:pointer; margin-top:6px;">📋 Copiar lista completa</button>
+
+        <h4 style="text-align:left; margin:16px 0 6px; font-size:14px;">⚠️ Tardanzas (${d.resumen.tardanzas}) — un mensaje por persona</h4>
+        ${bloqueTardanzas}
+
+        ${bloqueSinMarcar}
+
+        <hr style="margin:14px 0; border:none; border-top:1px solid #eee;">
+        <button type="button" id="btnVolverCortes"
+          style="background:#e5e7eb; color:#374151; border:none; padding:8px 16px; border-radius:6px; cursor:pointer;">← Volver a las franjas</button>
+      `,
+      width: '660px',
+      showConfirmButton: false,
+      showCloseButton: true,
+      didOpen: () => {
+        const popup = Swal.getPopup();
+        activarBotonesCopiar(popup, textos);
+        // Sin esto habría que reabrir el panel entero para consultar otra franja.
+        const volver = popup.querySelector('#btnVolverCortes');
+        if (volver) volver.addEventListener('click', () => mostrarSelectorReportes());
+      }
+    });
+  } catch (error) {
+    Swal.fire('Error', error.response?.data?.error || 'No se pudo generar el reporte', 'error');
+  }
+}
+
+// ---------- Resúmenes de día y de periodo ----------
+
+async function mostrarReporteTexto(tipo) {
+  const token = localStorage.getItem('token');
+
+  const params = { tipo };
+  const desde = document.getElementById('fechaDesde')?.value;
+  const hasta = document.getElementById('fechaHasta')?.value;
+
+  if (tipo === 'periodo') {
+    if (desde) params.fechaInicio = desde;
+    if (hasta) params.fechaFin = hasta;
+  } else if (desde) {
+    params.fecha = desde;
+  }
+
+  try {
+    Swal.fire({ title: 'Generando reporte...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    const res = await axios.get('/api/admin/reportes/texto', {
+      params,
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    const texto = res.data.texto || '';
+    const titulo = tipo === 'periodo' ? '📊 Resumen del periodo' : '📋 Resumen del día';
+    const aviso = tipo === 'periodo' && !params.fechaInicio && !params.fechaFin
+      ? '<p style="color:#b45309; font-size:12px; margin:0 0 8px;">Sin fechas seleccionadas: se resume el histórico completo. Usa los campos de fecha del panel para acotarlo.</p>'
+      : '';
+
+    await Swal.fire({
+      title: titulo,
+      html: `
+        ${aviso}
+        <p style="font-size:12px; color:#666; margin:0 0 8px; text-align:left;">
+          Revisa el texto y pulsa Copiar. Se pega tal cual en WhatsApp.
+        </p>
+        <textarea readonly
+          style="width:100%; height:340px; font-family:monospace; font-size:12.5px; line-height:1.45;
+                 padding:12px; border:1px solid #ccc; border-radius:8px; resize:vertical; white-space:pre;"
+        >${escaparHtml(texto)}</textarea>
+        <button type="button" data-copiar="texto"
+          style="background:#128C7E; color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; margin-top:8px;">📋 Copiar</button>
+      `,
+      width: '640px',
+      showConfirmButton: false,
+      showCloseButton: true,
+      didOpen: () => activarBotonesCopiar(Swal.getPopup(), { texto })
+    });
+  } catch (error) {
+    Swal.fire('Error', error.response?.data?.error || 'No se pudo generar el reporte', 'error');
+  }
+}
+
+const btnReportesWhatsapp = document.getElementById('btnReportesWhatsapp');
+if (btnReportesWhatsapp) btnReportesWhatsapp.onclick = mostrarSelectorReportes;
 
 // ========== AGREGAR BOTONES (si existen en el HTML) ==========
 const btnReporteAsistencia = document.getElementById('btnReporteAsistencia');
@@ -591,9 +894,20 @@ if (btnVerFaltantes) {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      const { faltantes, total, fecha } = res.data;
+      const { faltantes, total, fecha, estado, esDiaLaborable, pasoHoraDeCorte } = res.data;
 
-      titulo.textContent = `Faltantes del ${fecha} (Total: ${total})${mostrandoArchivadosFaltantes ? ' [MODO ARCHIVADOS]' : ''}`;
+      // Quien no marcó está "pendiente" mientras el día siga abierto y pasa a
+      // "ausente" tras la hora de corte. En domingo no se espera a nadie.
+      let etiqueta = 'Sin marcar';
+      if (estado === 'AUSENTE') etiqueta = '🔴 Ausentes';
+      else if (estado === 'PENDIENTE') etiqueta = '⏳ Pendientes';
+      else if (estado === 'NO_LABORABLE') etiqueta = '⬜ Día no laborable';
+
+      const nota = esDiaLaborable === false
+        ? ' — hoy no se espera asistencia'
+        : (pasoHoraDeCorte ? ' — ya pasó la hora de corte' : ' — aún pueden marcar');
+
+      titulo.textContent = `${etiqueta} del ${fecha} (Total: ${total})${nota}${mostrandoArchivadosFaltantes ? ' [MODO ARCHIVADOS]' : ''}`;
       tbody.innerHTML = '';
 
       if (total === 0) {

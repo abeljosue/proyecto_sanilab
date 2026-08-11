@@ -23,9 +23,18 @@
       <button id="btnExportarSheets" class="btn-export-sheets">📊 Exportar a Google Sheets</button>
       
       <!-- 🆕 NUEVOS BOTONES PARA MEJORAS -->
-      <button id="btnReporteAsistencia" style="background: #22c55e; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer;">📊 Reporte Asistencia</button>
+      <!-- Renombrado: antes se llamaba "Reporte Asistencia" y se confundia con
+           los reportes de WhatsApp. Este es la tabla detallada en pantalla. -->
+      <button id="btnReporteAsistencia" style="background: #22c55e; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer;">📊 Detalle de asistencia</button>
       <button id="btnEstadisticasUsuario" style="background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer;">📈 Estadísticas Usuario</button>
       <button id="btnUsuariosBloqueados" style="background: #ef4444; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer;">🔒 Usuarios Bloqueados</button>
+    </div>
+
+    <!-- Reportes listos para copiar y pegar en WhatsApp.
+         Un solo botón: dentro están las 6 franjas del día, el resumen de la
+         jornada y el del periodo. Antes eran dos botones sueltos aquí. -->
+    <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+      <button id="btnReportesWhatsapp" style="background: #128C7E; color: white; border: none; padding: 10px 18px; border-radius: 5px; cursor: pointer; font-weight: bold;">💬 Reportes para WhatsApp</button>
     </div>
 
     <div style="margin-bottom: 30px;">
