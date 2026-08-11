@@ -15,6 +15,10 @@ router.get('/faltantes-autoevaluacion-hoy', verifyToken, verifyAdmin, adminContr
 router.put('/usuarios/:id/archivar', verifyToken, verifyAdmin, adminController.toggleArchivarUsuario);
 router.put('/usuarios/:id/telefono', verifyToken, verifyAdmin, adminController.updateTelefono);
 
+// Editar los datos de contacto de un usuario (nombre, apellido, telefono, area...).
+// Solo campos que ya existen en el modelo: no requiere migracion.
+router.put('/usuarios/:id', verifyToken, verifyAdmin, verifyCanEdit, adminController.updateUsuario);
+
 // ========== 🆕 NUEVAS RUTAS ==========
 
 // 📊 REPORTES Y ESTADÍSTICAS

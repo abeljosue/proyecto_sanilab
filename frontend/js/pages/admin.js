@@ -40,9 +40,82 @@ document.addEventListener('DOMContentLoaded', function () {
   if (btnFiltrarPuntajes) btnFiltrarPuntajes.onclick = cargarPuntajes;
   if (btnExportarSheets) btnExportarSheets.onclick = exportarAGoogleSheets;
 
+  // La tabla arranca mostrando SOLO el día de hoy. Antes, sin fechas, el
+  // servidor devolvía hoy + ayer mezclados y costaba ver quién había marcado.
+  aplicarRango('hoy', false);
+
+  // Atajos de fecha. Evitan tener que abrir dos calendarios para lo habitual.
+  document.querySelectorAll('.rangos-rapidos .chip').forEach(chip => {
+    chip.addEventListener('click', () => aplicarRango(chip.dataset.rango));
+  });
+
+  const btnLimpiar = document.getElementById('btnLimpiarFiltros');
+  if (btnLimpiar) {
+    btnLimpiar.addEventListener('click', () => {
+      document.getElementById('buscarNombre').value = '';
+      aplicarRango('hoy');
+    });
+  }
+
+  // Buscar al pulsar Enter en el campo de nombre.
+  const inputNombre = document.getElementById('buscarNombre');
+  if (inputNombre) {
+    inputNombre.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); cargarHoras(); }
+    });
+  }
+
+  // Cambiar una fecha a mano deja de corresponder a ningún atajo.
+  ['fechaDesde', 'fechaHasta'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', () => marcarChipActivo(null));
+  });
+
   cargarHoras();
   cargarPuntajes();
 });
+
+/** Fecha local en formato AAAA-MM-DD, que es lo que espera el backend. */
+function aISO(fecha) {
+  const d = (n) => String(n).padStart(2, '0');
+  return `${fecha.getFullYear()}-${d(fecha.getMonth() + 1)}-${d(fecha.getDate())}`;
+}
+
+function hoyISO() {
+  return aISO(new Date());
+}
+
+function marcarChipActivo(rango) {
+  document.querySelectorAll('.rangos-rapidos .chip').forEach(c => {
+    c.classList.toggle('activo', c.dataset.rango === rango);
+  });
+}
+
+/**
+ * Rellena los campos de fecha con un rango de uso frecuente.
+ * @param {string}  rango    hoy | ayer | semana | mes
+ * @param {boolean} recargar si debe volver a pedir los datos (por defecto, sí)
+ */
+function aplicarRango(rango, recargar = true) {
+  const hoy = new Date();
+  let desde = new Date(hoy);
+  let hasta = new Date(hoy);
+
+  if (rango === 'ayer') {
+    desde.setDate(hoy.getDate() - 1);
+    hasta = new Date(desde);
+  } else if (rango === 'semana') {
+    desde.setDate(hoy.getDate() - 6);
+  } else if (rango === 'mes') {
+    desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+  }
+
+  document.getElementById('fechaDesde').value = aISO(desde);
+  document.getElementById('fechaHasta').value = aISO(hasta);
+  marcarChipActivo(rango);
+
+  if (recargar) cargarHoras();
+}
 
 function formatearHoraTotal(valor) {
   if (!valor) return '--:--:--';
@@ -119,11 +192,32 @@ async function cargarHoras() {
 
     const datos = res.data;
     const tbody = document.getElementById('tablaHoras');
+    const resumen = document.getElementById('resumenHoras');
+    const columnas = esGerente ? 7 : 8;
     tbody.innerHTML = '';
 
     if (datos.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5">No hay datos</td></tr>';
+      const rango = descripcionRango(fechaDesde, fechaHasta);
+      // "hoy" no lleva preposición; "el 10/08/2026" o un rango, sí.
+      const cuando = rango === 'hoy' ? 'hoy' : `en ${rango}`;
+      tbody.innerHTML = `<tr><td colspan="${columnas}" style="text-align:center; padding:18px; color:#94a3b8;">
+        Nadie marcó asistencia ${cuando}${nombre ? ` con el nombre «${escaparHtml(nombre)}»` : ''}.
+      </td></tr>`;
+      if (resumen) resumen.innerHTML = '';
       return;
+    }
+
+    // Recuento por estado, para saber de un vistazo cuántos siguen trabajando.
+    const enCurso = datos.filter(r => r.estado !== 'Completado').length;
+    const autos = datos.filter(r => r.cierre_automatico).length;
+    if (resumen) {
+      resumen.innerHTML = `
+        <span class="dato">📅 ${descripcionRango(fechaDesde, fechaHasta)}</span>
+        <span class="dato">${datos.length} registro${datos.length === 1 ? '' : 's'}</span>
+        <span class="dato">🟢 ${datos.length - enCurso} completados</span>
+        <span class="dato">🟡 ${enCurso} en curso</span>
+        ${autos ? `<span class="dato" style="color:#fbbf24;">⚠️ ${autos} cerrados por el sistema</span>` : ''}
+      `;
     }
 
     datos.forEach(row => {
@@ -131,28 +225,40 @@ async function cargarHoras() {
       const horaSalida = formatearHoraCorta(row.horasalida);
       const totalHoras = formatearHoraTotal(row.horatotal);
       const fecha = formatearFechaISO(row.fecha);
-      const colorEstado = row.estado === 'Completado' ? '#4caf50' : '#ff9800';
+
+      // El estado viene ya resuelto del servidor: 'Completado' solo cuando la
+      // jornada terminó de verdad. Quien está en pausa aparece "En curso",
+      // que es lo correcto: aún no ha acabado.
+      const completado = row.estado === 'Completado';
+      const claseEstado = completado ? 'estado-completado' : 'estado-encurso';
+      const detallePausa = row.enPausa ? ' title="En pausa: la jornada sigue abierta"' : '';
+      const marcaPausa = row.enPausa ? ' ⏸' : '';
 
       const isAuto = row.cierre_automatico;
-      const resalteBg = isAuto ? 'background-color: rgba(255, 152, 0, 0.2); border-left: 4px solid #e65100;' : '';
+      const resalteBg = isAuto ? 'background-color: rgba(255, 152, 0, 0.16); border-left: 4px solid #e65100;' : '';
       const alarmaSalida = isAuto ? ` <span style="background:#e65100; color:white; font-size:10px; padding:2px 4px; border-radius:3px; margin-left:3px; font-weight:bold;">⚠️ Auto</span>` : '';
+
+      // La salida de quien no ha terminado no es un dato real todavía.
+      const celdaSalida = completado
+        ? `${horaSalida}${alarmaSalida}`
+        : '<span style="color:#94a3b8;">—</span>';
 
       const celdaAcciones = !esGerente ? `
           <td>
-            <button class="btn-editar" style="cursor:pointer; padding:5px 10px; background:#ff9800; color:white; border:none; border-radius:4px;" 
-                    onclick="abrirModalEdicion('${row._id}', '${row.nombre}', '${row.horaentrada || ''}', '${row.horasalida || ''}')">
+            <button class="btn-editar" style="cursor:pointer; padding:5px 10px; background:#ff9800; color:white; border:none; border-radius:4px;"
+                    onclick="abrirModalEdicion('${row._id}', ${JSON.stringify(row.nombre).replace(/"/g, '&quot;')}, '${row.horaentrada || ''}', '${row.horasalida || ''}')">
               ✏️ Editar
             </button>
           </td>` : '';
 
       tbody.innerHTML += `
         <tr style="${resalteBg}">
-          <td><strong>${row.nombre}</strong></td>
-          <td>${row.area}</td>
-          <td style="color:${colorEstado};font-weight: bold;">${row.estado}</td>
+          <td><strong>${escaparHtml(row.nombre)}</strong></td>
+          <td>${escaparHtml(row.area)}</td>
+          <td><span class="estado-badge ${claseEstado}"${detallePausa}>${row.estado}${marcaPausa}</span></td>
           <td>${fecha}</td>
           <td>${horaEntrada}</td>
-          <td style="${isAuto ? 'color:#e65100; font-weight:bold;' : ''}">${horaSalida}${alarmaSalida}</td>
+          <td style="${isAuto ? 'color:#e65100; font-weight:bold;' : ''}">${celdaSalida}</td>
           <td><strong>${totalHoras}</strong></td>
           ${celdaAcciones}
         </tr>
@@ -160,8 +266,20 @@ async function cargarHoras() {
     });
   } catch (error) {
     console.error('Error cargarHoras:', error);
-    alert('Error cargando horas: ' + error.message);
+    Swal.fire('Error', 'No se pudieron cargar las horas: ' + (error.response?.data?.error || error.message), 'error');
   }
+}
+
+/** Texto legible del rango consultado, para el resumen y los mensajes vacíos. */
+function descripcionRango(desde, hasta) {
+  const hoy = hoyISO();
+  if (desde && hasta && desde === hasta) {
+    return desde === hoy ? 'hoy' : `el ${formatearFechaISO(desde)}`;
+  }
+  if (desde && hasta) return `${formatearFechaISO(desde)} → ${formatearFechaISO(hasta)}`;
+  if (desde) return `desde el ${formatearFechaISO(desde)}`;
+  if (hasta) return `hasta el ${formatearFechaISO(hasta)}`;
+  return 'el histórico completo';
 }
 
 async function cargarPuntajes() {
@@ -301,7 +419,7 @@ async function mostrarReporteAsistencia() {
     let html = `
       <p style="font-size:13px; margin:0 0 10px; text-align:left;">
         📅 Periodo: <strong>${rangoDescrito}</strong>
-        <span style="color:#666;"> — para otro rango, usa los campos de fecha del panel y vuelve a pulsar.</span>
+        <span style="color:#666;"> — usa los atajos de fecha o el rango del panel y vuelve a pulsar.</span>
       </p>
       <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; font-size:13px;">
         <span style="background:#e8f5e9; padding:6px 10px; border-radius:6px;"><strong>${data.totalRegistros}</strong> registros</span>
@@ -331,7 +449,7 @@ async function mostrarReporteAsistencia() {
     });
     html += `</tbody></table></div>`;
 
-    Swal.fire({ title: '📊 Reporte de Asistencia', html: html, width: '90%', confirmButtonText: 'Cerrar' });
+    Swal.fire({ title: '📊 Detalle de asistencia', html: html, width: '90%', confirmButtonText: 'Cerrar' });
   } catch (error) {
     Swal.fire('Error', 'No se pudo cargar el reporte', 'error');
   }
@@ -360,7 +478,7 @@ async function mostrarEstadisticasUsuario() {
   }
 
   const { value: usuarioId } = await Swal.fire({
-    title: '📊 Estadísticas por Usuario',
+    title: '📈 Estadísticas por trabajador',
     input: 'select',
     inputOptions: opciones,
     inputPlaceholder: 'Selecciona un trabajador',
@@ -532,17 +650,21 @@ function activarBotonesCopiar(contenedor, textos) {
   });
 }
 
-/** Fecha del reporte: usa "Desde" del panel si está puesta; si no, hoy. */
+/**
+ * Fecha del reporte. Arranca con la del filtro de la tabla de horas, para que
+ * lo que ves en pantalla y lo que mandas por WhatsApp sean el mismo día; pero
+ * dentro del modal se puede cambiar sin tocar la tabla.
+ */
 function fechaDelReporte() {
   const desde = document.getElementById('fechaDesde')?.value;
-  return desde || '';
+  return desde || hoyISO();
 }
 
 // ---------- Selector de franjas ----------
 
-async function mostrarSelectorReportes() {
+async function mostrarSelectorReportes(fechaPedida) {
   const token = localStorage.getItem('token');
-  const fecha = fechaDelReporte();
+  const fecha = fechaPedida || fechaDelReporte();
 
   try {
     Swal.fire({ title: 'Cargando franjas...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -553,7 +675,8 @@ async function mostrarSelectorReportes() {
     });
 
     const cortes = res.data.cortes || [];
-    const etiquetaFecha = fecha ? `del ${fecha}` : 'de hoy';
+    const esHoy = fecha === hoyISO();
+    const etiquetaFecha = esHoy ? 'de hoy' : `del ${formatearFechaISO(fecha)}`;
 
     const filas = cortes.map(c => {
       if (!c.disponible) {
@@ -584,12 +707,18 @@ async function mostrarSelectorReportes() {
     await Swal.fire({
       title: '💬 Reportes para WhatsApp',
       html: `
+        <div style="display:flex; align-items:center; gap:8px; justify-content:center; flex-wrap:wrap; margin-bottom:10px;">
+          <label style="font-size:13px; color:#444;">📅 Día del reporte</label>
+          <input type="date" id="fechaReporte" value="${fecha}" max="${hoyISO()}"
+                 style="padding:6px 10px; border:1px solid #ccc; border-radius:6px; font-size:13px;">
+          <button type="button" id="btnReporteHoy"
+                  style="background:#e5e7eb; color:#374151; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12.5px;">Hoy</button>
+        </div>
         <p style="font-size:12.5px; color:#666; margin:0 0 10px; text-align:left;">
           Franjas ${etiquetaFecha}. Cada corte cubre desde el anterior, así que nadie
           se pierde: quien llega tarde a una franja aparece en la siguiente.
-          Para otro día, pon la fecha en el campo <em>Desde</em> del panel.
         </p>
-        <div style="max-height:300px; overflow-y:auto;">${filas}</div>
+        <div style="max-height:280px; overflow-y:auto;">${filas}</div>
         <hr style="margin:14px 0; border:none; border-top:1px solid #eee;">
         <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
           <button type="button" data-tipo="dia"
@@ -603,11 +732,23 @@ async function mostrarSelectorReportes() {
       showCloseButton: true,
       didOpen: () => {
         const popup = Swal.getPopup();
+
+        // Cambiar la fecha recarga el selector con las franjas de ese día,
+        // sin tener que cerrar el modal ni tocar los filtros de la tabla.
+        const inputFecha = popup.querySelector('#fechaReporte');
+        if (inputFecha) {
+          inputFecha.addEventListener('change', () => {
+            if (inputFecha.value) mostrarSelectorReportes(inputFecha.value);
+          });
+        }
+        const btnHoy = popup.querySelector('#btnReporteHoy');
+        if (btnHoy) btnHoy.addEventListener('click', () => mostrarSelectorReportes(hoyISO()));
+
         popup.querySelectorAll('[data-corte]').forEach(btn => {
           btn.addEventListener('click', () => mostrarReporteCorte(btn.dataset.corte, fecha));
         });
         popup.querySelectorAll('[data-tipo]').forEach(btn => {
-          btn.addEventListener('click', () => mostrarReporteTexto(btn.dataset.tipo));
+          btn.addEventListener('click', () => mostrarReporteTexto(btn.dataset.tipo, fecha));
         });
       }
     });
@@ -692,7 +833,7 @@ async function mostrarReporteCorte(corteId, fecha) {
         activarBotonesCopiar(popup, textos);
         // Sin esto habría que reabrir el panel entero para consultar otra franja.
         const volver = popup.querySelector('#btnVolverCortes');
-        if (volver) volver.addEventListener('click', () => mostrarSelectorReportes());
+        if (volver) volver.addEventListener('click', () => mostrarSelectorReportes(fecha));
       }
     });
   } catch (error) {
@@ -702,7 +843,7 @@ async function mostrarReporteCorte(corteId, fecha) {
 
 // ---------- Resúmenes de día y de periodo ----------
 
-async function mostrarReporteTexto(tipo) {
+async function mostrarReporteTexto(tipo, fechaElegida) {
   const token = localStorage.getItem('token');
 
   const params = { tipo };
@@ -710,10 +851,13 @@ async function mostrarReporteTexto(tipo) {
   const hasta = document.getElementById('fechaHasta')?.value;
 
   if (tipo === 'periodo') {
+    // El periodo sí usa el rango completo de la tabla: es un agregado.
     if (desde) params.fechaInicio = desde;
     if (hasta) params.fechaFin = hasta;
-  } else if (desde) {
-    params.fecha = desde;
+  } else {
+    // El resumen del día usa la fecha elegida en el modal de reportes; si se
+    // llama desde otro sitio, cae en la del filtro y por último en hoy.
+    params.fecha = fechaElegida || desde || hoyISO();
   }
 
   try {
@@ -755,7 +899,202 @@ async function mostrarReporteTexto(tipo) {
 }
 
 const btnReportesWhatsapp = document.getElementById('btnReportesWhatsapp');
-if (btnReportesWhatsapp) btnReportesWhatsapp.onclick = mostrarSelectorReportes;
+// Envuelto en una flecha a propósito: asignar la función directamente le pasaría
+// el evento del clic como primer argumento, y ese argumento es ahora la fecha.
+if (btnReportesWhatsapp) btnReportesWhatsapp.onclick = () => mostrarSelectorReportes();
+
+// ==========================================================================
+//  GESTION DE USUARIOS
+//  Hasta ahora el unico modo de corregir un telefono era abrir la lista de
+//  faltantes del dia y pulsar el lapiz, asi que solo se podia editar a quien
+//  casualmente no hubiera marcado. Aqui estan todos.
+//
+//  Solo se editan campos que YA existen en el modelo Usuario: no hace falta
+//  ninguna migracion ni tocar la base de produccion.
+// ==========================================================================
+
+let usuariosCache = [];
+let areasCache = null;
+
+function pintarTablaUsuarios() {
+  const tbody = document.getElementById('tablaUsuarios');
+  if (!tbody) return;
+
+  const texto = (document.getElementById('buscarUsuario')?.value || '').trim().toLowerCase();
+  const soloSinTelefono = document.getElementById('chkSoloSinTelefono')?.checked;
+
+  const lista = usuariosCache.filter(u => {
+    if (soloSinTelefono && u.telefono) return false;
+    if (!texto) return true;
+    return `${u.nombre} ${u.correo} ${u.area}`.toLowerCase().includes(texto);
+  });
+
+  const sinTel = usuariosCache.filter(u => !u.telefono).length;
+  const contador = document.getElementById('contadorSinTelefono');
+  if (contador) {
+    contador.textContent = sinTel;
+    contador.classList.toggle('ok', sinTel === 0);
+  }
+
+  if (lista.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:16px; color:#94a3b8;">Ningún usuario coincide.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = lista.map(u => {
+    const tel = u.telefono
+      ? escaparHtml(u.telefono)
+      : '<span class="sin-dato">sin teléfono</span>';
+    const archivado = u.archivado
+      ? ' <span style="font-size:11px; color:#94a3b8;">(archivado)</span>'
+      : '';
+    return `
+      <tr style="opacity:${u.archivado ? '0.6' : '1'};">
+        <td><strong>${escaparHtml(u.nombre)}</strong>${archivado}</td>
+        <td style="font-size:12.5px;">${escaparHtml(u.correo)}</td>
+        <td>${tel}</td>
+        <td>${escaparHtml(u.area)}</td>
+        <td>${u.rol === 'ADMIN' ? '🛡️ Admin' : 'Usuario'}</td>
+        <td>
+          <button class="btn-sec" data-editar="${u.id}" style="padding:5px 11px;">✏️ Editar</button>
+        </td>
+      </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('[data-editar]').forEach(btn => {
+    btn.addEventListener('click', () => editarUsuario(btn.dataset.editar));
+  });
+}
+
+async function cargarAreas() {
+  if (areasCache) return areasCache;
+  try {
+    const res = await axios.get('/api/areas');
+    areasCache = Array.isArray(res.data) ? res.data : [];
+  } catch (e) {
+    areasCache = [];
+  }
+  return areasCache;
+}
+
+async function cargarUsuarios() {
+  const token = localStorage.getItem('token');
+  const incluirArchivados = document.getElementById('chkIncluirArchivados')?.checked;
+  const tbody = document.getElementById('tablaUsuarios');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:16px;">Cargando…</td></tr>';
+
+  try {
+    const res = await axios.get('/api/admin/usuarios', {
+      params: incluirArchivados ? { incluirArchivados: 'true' } : {},
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    usuariosCache = res.data.usuarios || [];
+    pintarTablaUsuarios();
+  } catch (error) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#f87171;">No se pudo cargar la lista.</td></tr>';
+    Swal.fire('Error', error.response?.data?.error || 'No se pudo cargar la lista de usuarios', 'error');
+  }
+}
+
+async function editarUsuario(id) {
+  const u = usuariosCache.find(x => String(x.id) === String(id));
+  if (!u) return;
+
+  const areas = await cargarAreas();
+  const opcionesArea = ['<option value="">— Sin área —</option>']
+    .concat(areas.map(a => `<option value="${a.id}" ${String(a.id) === String(u.areaId) ? 'selected' : ''}>${escaparHtml(a.nombre)}</option>`))
+    .join('');
+
+  const { value: datos } = await Swal.fire({
+    title: `✏️ ${escaparHtml(u.nombre)}`,
+    html: `
+      <div style="text-align:left; font-size:13px;">
+        <p style="color:#666; margin:0 0 12px;">${escaparHtml(u.correo)}</p>
+        <label style="display:block; margin-bottom:4px; font-weight:600;">Nombre</label>
+        <input id="euNombre" class="swal2-input" style="margin:0 0 10px; width:100%;" value="${escaparHtml(u.nombrePila || '')}">
+        <label style="display:block; margin-bottom:4px; font-weight:600;">Apellido</label>
+        <input id="euApellido" class="swal2-input" style="margin:0 0 10px; width:100%;" value="${escaparHtml(u.apellido || '')}">
+        <label style="display:block; margin-bottom:4px; font-weight:600;">Teléfono</label>
+        <input id="euTelefono" class="swal2-input" style="margin:0 0 4px; width:100%;" inputmode="numeric"
+               placeholder="9 dígitos, ej. 986569971" value="${escaparHtml(u.telefono || '')}">
+        <p style="color:#888; font-size:11.5px; margin:0 0 10px;">Se guarda solo con dígitos, sin espacios ni prefijo.</p>
+        <label style="display:block; margin-bottom:4px; font-weight:600;">Área</label>
+        <select id="euArea" class="swal2-select" style="margin:0; width:100%;">${opcionesArea}</select>
+      </div>
+    `,
+    focusConfirm: false,
+    showCancelButton: true,
+    confirmButtonText: 'Guardar',
+    cancelButtonText: 'Cancelar',
+    confirmButtonColor: '#8b5cf6',
+    preConfirm: () => {
+      const nombre = document.getElementById('euNombre').value.trim();
+      if (!nombre) {
+        Swal.showValidationMessage('El nombre no puede quedar vacío.');
+        return false;
+      }
+      const telefono = document.getElementById('euTelefono').value.replace(/\D/g, '');
+      if (telefono && telefono.length < 6) {
+        Swal.showValidationMessage('El teléfono parece incompleto.');
+        return false;
+      }
+      return {
+        nombre,
+        apellido: document.getElementById('euApellido').value.trim(),
+        telefono,
+        areaid: document.getElementById('euArea').value || null
+      };
+    }
+  });
+
+  if (!datos) return;
+
+  try {
+    const token = localStorage.getItem('token');
+    const res = await axios.put(`/api/admin/usuarios/${id}`, datos, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    Swal.fire({
+      icon: 'success',
+      title: 'Guardado',
+      text: res.data.message,
+      timer: 1600,
+      showConfirmButton: false
+    });
+
+    await cargarUsuarios();
+    // Los datos de contacto salen también en la tabla de horas.
+    cargarHoras();
+  } catch (error) {
+    Swal.fire('Error', error.response?.data?.error || 'No se pudo guardar', 'error');
+  }
+}
+
+const btnGestionUsuarios = document.getElementById('btnGestionUsuarios');
+if (btnGestionUsuarios) {
+  btnGestionUsuarios.addEventListener('click', () => {
+    const sec = document.getElementById('seccionUsuarios');
+    const visible = sec.style.display === 'block';
+    sec.style.display = visible ? 'none' : 'block';
+    btnGestionUsuarios.textContent = visible ? '👥 Usuarios y teléfonos' : '👥 Ocultar usuarios';
+    if (!visible) {
+      cargarUsuarios();
+      sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+}
+
+['buscarUsuario'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', pintarTablaUsuarios);
+});
+const chkSinTel = document.getElementById('chkSoloSinTelefono');
+if (chkSinTel) chkSinTel.addEventListener('change', pintarTablaUsuarios);
+const chkArch = document.getElementById('chkIncluirArchivados');
+if (chkArch) chkArch.addEventListener('change', cargarUsuarios);
+const btnRecargarUsuarios = document.getElementById('btnRecargarUsuarios');
+if (btnRecargarUsuarios) btnRecargarUsuarios.addEventListener('click', cargarUsuarios);
 
 // ========== AGREGAR BOTONES (si existen en el HTML) ==========
 const btnReporteAsistencia = document.getElementById('btnReporteAsistencia');
@@ -881,7 +1220,7 @@ if (btnVerFaltantes) {
 
     if (container.style.display === 'block') {
       container.style.display = 'none';
-      btnVerFaltantes.textContent = 'Ver quiénes no han marcado entrada hoy';
+      btnVerFaltantes.textContent = '📋 Sin marcar hoy';
       if(btnToggleArchivadosEntrada) btnToggleArchivadosEntrada.style.display = 'none';
       return;
     }
@@ -937,12 +1276,12 @@ if (btnVerFaltantes) {
       }
 
       container.style.display = 'block';
-      btnVerFaltantes.textContent = 'Ocultar lista de faltantes';
+      btnVerFaltantes.textContent = '📋 Ocultar sin marcar';
       if(btnToggleArchivadosEntrada) btnToggleArchivadosEntrada.style.display = 'inline-block';
     } catch (error) {
       console.error('Error cargar faltantes:', error);
       alert('Error al cargar faltantes: ' + error.message);
-      btnVerFaltantes.textContent = 'Ver quiénes no han marcado entrada hoy';
+      btnVerFaltantes.textContent = '📋 Sin marcar hoy';
     } finally {
       btnVerFaltantes.disabled = false;
     }
@@ -973,7 +1312,7 @@ if (btnVerFaltantesAutoevaluacion) {
 
     if (container.style.display === 'block') {
       container.style.display = 'none';
-      btnVerFaltantesAutoevaluacion.textContent = '📝 Ver quiénes no han realizado autoevaluación hoy';
+      btnVerFaltantesAutoevaluacion.textContent = '📝 Quiénes no la han hecho hoy';
       if(btnToggleArchivadosAutoeval) btnToggleArchivadosAutoeval.style.display = 'none';
       return;
     }
@@ -1018,14 +1357,14 @@ if (btnVerFaltantesAutoevaluacion) {
       }
 
       container.style.display = 'block';
-      btnVerFaltantesAutoevaluacion.textContent = 'Ocultar lista de autoevaluaciones';
+      btnVerFaltantesAutoevaluacion.textContent = '📝 Ocultar lista';
       if(btnToggleArchivadosAutoeval) btnToggleArchivadosAutoeval.style.display = 'inline-block';
       
       container.scrollIntoView({ behavior: 'smooth' });
     } catch (error) {
       console.error('Error cargar faltantes autoevaluación:', error);
       alert('Error al cargar faltantes de autoevaluación: ' + error.message);
-      btnVerFaltantesAutoevaluacion.textContent = '📝 Ver quiénes no han realizado autoevaluación hoy';
+      btnVerFaltantesAutoevaluacion.textContent = '📝 Quiénes no la han hecho hoy';
     } finally {
       btnVerFaltantesAutoevaluacion.disabled = false;
     }
