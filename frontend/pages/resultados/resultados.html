@@ -93,16 +93,16 @@
 
           if (estado.tipo === 'ventana_cerrada') {
             icono = 'info';
-            titulo = '📅 La ruleta se abre a fin de mes';
+            titulo = '📅 La ruleta se abre al cerrar el mes';
           } else if (estado.tipo === 'fuera_top3') {
             icono = 'warning';
             titulo = '🏆 Sigue esforzándote';
           } else if (estado.tipo === 'ya_giro') {
             icono = 'success';
-            titulo = '🎉 Ya reclamaste tu premio de este mes';
+            titulo = '🎉 Ya reclamaste este premio';
           } else if (estado.tipo === 'cupo_agotado') {
             icono = 'info';
-            titulo = '🎁 Los premios de este mes ya se entregaron';
+            titulo = '🎁 Los premios ya se entregaron';
           }
 
           await Swal.fire({
@@ -257,8 +257,8 @@
           icon: 'question',
           title: '🎰 ¿Listo para girar?',
           html: `
-            <p style="font-size:16px;">Solo tienes <strong>1 intento este mes</strong>.</p>
-            <p style="font-size:14px; color:#888; margin-top:8px;">Una vez que gires, la ruleta no vuelve a abrirse para ti hasta fin del mes que viene.</p>
+            <p style="font-size:16px;">Solo tienes <strong>1 intento</strong> por cada mes que ganes.</p>
+            <p style="font-size:14px; color:#888; margin-top:8px;">Una vez que gires, tendrás que volver a quedar entre los 3 primeros del mes siguiente.</p>
           `,
           showCancelButton: true,
           confirmButtonText: '¡Girar ahora! 🎉',

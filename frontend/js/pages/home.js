@@ -194,19 +194,22 @@ async function configurarBotonResultados() {
       // los 3 primeros del ranking. Antes aquí ponía 'Disponible solo los
       // Sábados', que además era falso: el servidor solo aceptaba giros los
       // miércoles por un error de días.
+      // La ruleta premia un mes YA CERRADO: se abre los primeros días del mes
+      // siguiente. Por eso todos los textos hablan de 'los premios de <mes>' y
+      // no de 'este mes', que sería el del calendario y no el premiado.
       const porTipo = {
         ya_giro: {
           desc: 'Premio ya reclamado',
           icon: 'success',
-          titulo: '🎉 ¡Ya participaste este mes!'
+          titulo: '🎉 ¡Ya reclamaste tu premio!'
         },
         cupo_agotado: {
-          desc: 'Premios del mes agotados',
+          desc: 'Premios ya entregados',
           icon: 'info',
-          titulo: '🎁 Los premios de este mes ya se entregaron'
+          titulo: '🎁 Los premios ya se entregaron'
         },
         ventana_cerrada: {
-          desc: `Se abre a fin de mes`,
+          desc: 'Se reparte al cerrar el mes',
           icon: 'info',
           titulo: '📅 Todavía no se abre la ruleta'
         }
@@ -223,7 +226,7 @@ async function configurarBotonResultados() {
           html: `
             <p style="font-size:16px;">${estado.razon}</p>
             <hr style="margin:15px 0;">
-            <p style="font-size:13px; color:#888;">La ruleta se abre <strong>${estado.ventana?.etiqueta || 'a fin de mes'}</strong> para los ${estado.puestosConPremio || 3} primeros del ranking.</p>
+            <p style="font-size:13px; color:#888;">Los premios de <strong>${estado.etiquetaMes || 'cada mes'}</strong> se reparten <strong>${estado.ventana?.etiqueta || 'al cerrar el mes'}</strong>, entre los ${estado.puestosConPremio || 3} primeros del ranking.</p>
           `,
           confirmButtonText: 'Entendido',
           confirmButtonColor: '#4CAF50'

@@ -3,6 +3,7 @@ const RankingQuincenal = require('../models/RankingQuincenal');
 const { getLocalDate } = require('../utils/dateUtils');
 const periodos = require('../utils/periodos');
 const ruleta = require('../utils/ruleta');
+const rankingService = require('../services/rankingService');
 
 /**
  * ============================================================================
@@ -25,11 +26,28 @@ const ruleta = require('../utils/ruleta');
  * `fuera_top3`. Al revisar antes el dia, como se hacia antes, a quien no estaba
  * entre los tres primeros le salia el boton igualmente seis dias por semana,
  * anunciandole un premio al que no podia optar.
+ *
+ * QUE MES SE MIRA: nunca "el mes de hoy" a secas, sino `ventana.mesPremiado`.
+ * Con la ventana al principio del mes, en septiembre se reparten los premios de
+ * agosto: si aqui se leyera el mes del calendario, se consultaria un ranking de
+ * septiembre practicamente vacio. Ver utils/ruleta.js.
  */
 async function evaluarAcceso(usuarioid, momento) {
   const ahora = momento || getLocalDate();
-  const mes = periodos.claveMes(ahora);
-  const ventana = ruleta.ventanaDelMes(ahora);
+  const ventana = ruleta.ventanaVigente(ahora);
+  const mes = ventana.mesPremiado;
+
+  // Con la ventana abierta hay que asegurarse de que el ranking del mes que se
+  // premia esta COMPLETO. No basta con confiar en que alguien lo recalculara:
+  // el ranking solo se refrescaba al abrir la pagina de Ranking, y esa pagina
+  // recalcula el mes EN CURSO. En septiembre nadie tocaria agosto, asi que el
+  // reparto se haria sobre la foto que quedo el ultimo dia que un trabajador
+  // entro en agosto, sin las autoevaluaciones posteriores.
+  //
+  // Es idempotente y sobre dato derivado, asi que repetirlo no cuesta nada.
+  if (ventana.abierta) {
+    await rankingService.recalcularPeriodo(mes);
+  }
 
   const comun = {
     mes,
@@ -39,21 +57,21 @@ async function evaluarAcceso(usuarioid, momento) {
       abierta: ventana.abierta,
       desde: ventana.inicio,
       hasta: ventana.fin,
-      etiqueta: ruleta.etiquetaVentana(ahora),
+      etiqueta: ruleta.etiquetaVentanaDe(mes),
       proximaApertura: ventana.proximaApertura,
       diasParaAbrir: ventana.diasParaAbrir,
       diasQueQuedan: ventana.diasQueQuedan
     }
   };
 
-  // 1. ¿Esta entre los primeros puestos del mes en curso?
+  // 1. ¿Esta entre los primeros puestos del mes que se premia?
   const ranking = await RankingQuincenal.findOne({ usuarioid, quincena: mes });
 
   if (!ranking || !ranking.tieneruleta) {
     const posicion = ranking ? ranking.posicion : null;
     const dondeEsta = posicion
       ? `Vas en el puesto ${posicion}`
-      : 'Todavía no apareces en el ranking de este mes';
+      : `Todavía no apareces en el ranking de ${comun.etiquetaMes}`;
 
     return {
       ...comun,
@@ -61,15 +79,15 @@ async function evaluarAcceso(usuarioid, momento) {
       tipo: 'fuera_top3',
       posicion,
       puntaje: ranking ? ranking.puntajetotal : 0,
-      razon: `La ruleta es para los ${ruleta.PUESTOS_CON_PREMIO} primeros del ranking del mes. ${dondeEsta}. Sigue sumando con tus autoevaluaciones. 💪🌱`
+      razon: `La ruleta es para los ${ruleta.PUESTOS_CON_PREMIO} primeros del ranking de ${comun.etiquetaMes}. ${dondeEsta}. Sigue sumando con tus autoevaluaciones. 💪🌱`
     };
   }
 
   const datosRanking = { posicion: ranking.posicion, puntaje: ranking.puntajetotal };
 
-  // 2. ¿Ya giro este mes? Se comprueba antes que la ventana para que, una vez
-  //    reclamado el premio, el mensaje sea el bueno ("ya participaste") durante
-  //    todo el mes y no "vuelve el dia 25", que confundiria.
+  // 2. ¿Ya giro por ese mes? Se comprueba antes que la ventana para que, una
+  //    vez reclamado el premio, el mensaje sea el bueno ("ya participaste") y
+  //    no "vuelve el dia 1", que confundiria.
   const yaGiro = await GiroRuleta.findOne({ usuarioid, semana: mes });
 
   if (yaGiro) {
@@ -79,27 +97,22 @@ async function evaluarAcceso(usuarioid, momento) {
       permitido: false,
       tipo: 'ya_giro',
       premio: yaGiro.premio,
-      razon: `Ya giraste este mes y te tocó: "${yaGiro.premio}". La ruleta vuelve a abrirse a fin del mes que viene. 🎉`
+      razon: `Ya reclamaste tu premio de ${comun.etiquetaMes} y te tocó: "${yaGiro.premio}". 🎉`
     };
   }
 
-  // 3. ¿Esta abierta la ventana de fin de mes?
+  // 3. ¿Esta abierta la ventana?
   if (!ventana.abierta) {
     return {
       ...comun,
       ...datosRanking,
       permitido: false,
       tipo: 'ventana_cerrada',
-      razon: `La ruleta se abre a fin de mes: ${comun.ventana.etiqueta}. Faltan ${ventana.diasParaAbrir} día(s). Mantente en el top ${ruleta.PUESTOS_CON_PREMIO} hasta entonces. 🏆`
+      razon: `Los premios de ${comun.etiquetaMes} se reparten ${comun.ventana.etiqueta}, cuando el mes cierre. Faltan ${ventana.diasParaAbrir} día(s): mantente en el top ${ruleta.PUESTOS_CON_PREMIO}. 🏆`
     };
   }
 
-  // 4. ¿Quedan premios este mes?
-  //
-  //    El ranking se recalcula solo cada vez que alguien abre la pagina, asi
-  //    que el tercer puesto puede cambiar de manos DENTRO de la ventana. Sin
-  //    este tope, el tercero de ayer y el de hoy girarian los dos y el mes
-  //    repartiria mas premios de los que hay.
+  // 4. ¿Quedan premios de ese mes?
   const girosDelMes = await GiroRuleta.countDocuments({ semana: mes });
 
   if (girosDelMes >= ruleta.MAX_GIROS_POR_MES) {
@@ -108,7 +121,7 @@ async function evaluarAcceso(usuarioid, momento) {
       ...datosRanking,
       permitido: false,
       tipo: 'cupo_agotado',
-      razon: `Los ${ruleta.MAX_GIROS_POR_MES} premios de ${comun.etiquetaMes} ya se repartieron. La ruleta vuelve a fin del mes que viene.`
+      razon: `Los ${ruleta.MAX_GIROS_POR_MES} premios de ${comun.etiquetaMes} ya se repartieron.`
     };
   }
 
@@ -118,7 +131,7 @@ async function evaluarAcceso(usuarioid, momento) {
     ...datosRanking,
     permitido: true,
     tipo: 'ok',
-    razon: `Estás en el puesto ${ranking.posicion} de ${comun.etiquetaMes}. Te queda ${ventana.diasQueQuedan === 0 ? 'hoy' : `${ventana.diasQueQuedan + 1} día(s)`} para girar.`
+    razon: `Terminaste ${comun.etiquetaMes} en el puesto ${ranking.posicion}. Te queda${ventana.diasQueQuedan === 1 ? '' : 'n'} ${ventana.diasQueQuedan} día(s) para girar.`
   };
 }
 
@@ -160,19 +173,20 @@ exports.registrarGiro = async (req, res) => {
       usuarioid,
       premio,
       fechagiro: getLocalDate(),
-      // El campo se llama `semana` por herencia, pero desde ahora guarda el MES
-      // ("2026-08"). Ver utils/ruleta.js.
+      // El campo se llama `semana` por herencia, pero guarda el MES PREMIADO
+      // ("2026-08" aunque hoy sea 3 de septiembre). Ver utils/ruleta.js.
       semana: acceso.mes
     });
 
     await nuevoGiro.save();
-    console.log(`Giro registrado: usuario ${usuarioid} gano "${premio}" - mes ${acceso.mes}`);
+    console.log(`Giro registrado: usuario ${usuarioid} gano "${premio}" por el mes ${acceso.mes}`);
 
     res.json({
       ok: true,
       message: `¡Felicidades! Has ganado: ${premio}`,
       premio,
-      mes: acceso.mes
+      mes: acceso.mes,
+      etiquetaMes: acceso.etiquetaMes
     });
 
   } catch (err) {

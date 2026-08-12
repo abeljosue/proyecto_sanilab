@@ -71,6 +71,24 @@ function inicioMesSiguiente(fecha) {
   return new Date(d.getFullYear(), d.getMonth() + 1, 1, 0, 0, 0, 0);
 }
 
+/** Primer dia del mes anterior, a las 00:00. */
+function inicioMesAnterior(fecha) {
+  const d = comoFecha(fecha);
+  return new Date(d.getFullYear(), d.getMonth() - 1, 1, 0, 0, 0, 0);
+}
+
+/**
+ * Clave del mes anterior: en agosto devuelve "2026-07".
+ *
+ * La usa la ruleta, que se abre a principios de mes para repartir los premios
+ * del mes que acaba de cerrar. Se construye con `new Date(anio, mes - 1, 1)`
+ * en vez de restando dias para que enero salte a diciembre del año anterior
+ * sin casos especiales.
+ */
+function claveMesAnterior(fecha) {
+  return claveMes(inicioMesAnterior(fecha));
+}
+
 /**
  * Rango del dia completo: 00:00:00.000 a 23:59:59.999.
  */
@@ -141,6 +159,8 @@ module.exports = {
   ultimoDiaDelMes,
   diaDelMes,
   inicioMesSiguiente,
+  inicioMesAnterior,
+  claveMesAnterior,
   rangoDia,
   rangoSemana,
   proximoLunes,

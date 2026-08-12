@@ -2,29 +2,38 @@
  * REGLAS DE LA RULETA DE INCENTIVOS
  *
  * ─────────────────────────────────────────────────────────────────────────
- *  QUE CAMBIA Y POR QUE
+ *  LA VENTANA PREMIA UN MES YA CERRADO
  *
- *  Antes: la ruleta se abria TODOS los sabados y el candado de "ya giraste"
- *  era SEMANAL, mientras que la elegibilidad (estar en el top 3) se calculaba
- *  por MES. El resultado es que las mismas tres personas podian girar cuatro o
- *  cinco sabados seguidos: hasta 15 premios al mes en vez de 3.
+ *  Historia corta de esto, porque ha cambiado dos veces:
  *
- *  Ahora: la ruleta se abre una vez al mes, al final del mes, y cada persona
- *  puede girar una sola vez en esa ventana.
+ *  1. Al principio la ruleta se abria TODOS los sabados y el candado de "ya
+ *     giraste" era semanal, mientras la elegibilidad (top 3) se calculaba por
+ *     mes. Las mismas tres personas podian girar cuatro o cinco sabados
+ *     seguidos: hasta 15 premios al mes en vez de 3. Ademas los dos endpoints
+ *     comprobaban dias distintos y la ruleta no funcionaba ningun dia.
  *
- *  SE ELIGIO EL CALENDARIO Y NO "CADA CUARTA SEMANA" porque el ranking ya se
- *  agrupa por mes natural ("YYYY-MM"). Un ciclo de cuatro semanas daria 13
- *  periodos al año y se iria desplazando, de modo que una ventana acabaria a
- *  caballo entre dos meses y la pregunta "el top 3 de que mes?" no tendria
- *  respuesta buena. Con el mes natural, ventana y ranking son la misma unidad.
+ *  2. Luego se movio a los ULTIMOS dias del mes. Arreglaba el reparto, pero
+ *     dejaba un agujero de justicia: el ranking sigue moviendose mientras la
+ *     ventana esta abierta, asi que quien iba tercero el dia 25 giraba y podia
+ *     acabar quinto el 31, quedandose un premio que no le correspondia. Y el
+ *     que acababa tercero de verdad se encontraba el cupo agotado.
+ *
+ *  3. AHORA se abre en los PRIMEROS dias del mes siguiente y premia el mes que
+ *     acaba de cerrar. El ranking de ese mes ya no puede cambiar: nadie puede
+ *     añadir autoevaluaciones a un mes terminado. El top 3 es definitivo y no
+ *     hay nada que discutir.
+ *
+ *  Ojo a la consecuencia practica: en septiembre, la ruleta reparte los
+ *  premios de AGOSTO. El mes que se premia y el mes del calendario no son el
+ *  mismo, y por eso `mesPremiado` viaja en toda la respuesta.
  * ─────────────────────────────────────────────────────────────────────────
  *
  * NO se guarda ningun campo nuevo. La marca de "ya giro" se sigue escribiendo
- * en `GiroRuleta.semana`, que es un String libre: antes recibia "2026-W32" y
- * ahora recibe "2026-08". El indice unico {usuarioid, semana} pasa asi de
- * limitar un giro por semana a limitarlo por mes, sin tocar la base ni migrar
- * nada. Los giros antiguos conviven sin colisionar, porque el formato viejo y
- * el nuevo no coinciden nunca.
+ * en `GiroRuleta.semana`, que es un String libre: recibio "2026-W32" cuando era
+ * semanal y ahora recibe el MES PREMIADO ("2026-08"). El indice unico
+ * {usuarioid, semana} limita asi un giro por mes premiado, sin tocar la base ni
+ * migrar nada. Los formatos viejo y nuevo no coinciden nunca, asi que los giros
+ * antiguos conviven sin colisionar.
  *
  * ─────────────────────────────────────────────────────────────────────────
  *  PARA CAMBIAR LAS REGLAS, EDITA SOLO EL BLOQUE DE ABAJO.
@@ -33,24 +42,24 @@
 
 const periodos = require('./periodos');
 
-// Cuantos dias dura la ventana, contados hasta el ultimo dia del mes.
-// Con 7, en agosto la ruleta esta abierta del 25 al 31.
+// Cuantos dias dura la ventana, contados desde el dia 1 del mes.
+// Con 7, la ruleta esta abierta del 1 al 7 de cada mes.
 //
-// No se usa un solo dia porque la plantilla tiene horarios muy dispares: hay
-// quien solo trabaja tres dias a la semana, y con una ventana de uno o dos
-// dias se quedaria fuera por calendario, no por desempeño.
-const DIAS_VENTANA_FIN_DE_MES = 7;
+// Siete y no uno o dos porque la plantilla tiene horarios muy dispares: hay
+// quien solo trabaja tres dias a la semana. Siete dias seguidos contienen
+// exactamente una vez cada dia de la semana, asi que todo el mundo tiene
+// dentro de la ventana todos sus dias de trabajo habituales.
+const DIAS_VENTANA_INICIO_DE_MES = 7;
 
 // Cuantos puestos del ranking tienen derecho a girar.
 const PUESTOS_CON_PREMIO = 3;
 
-// Tope de premios que se reparten en un mes.
+// Tope de premios que se reparten por mes premiado.
 //
-// Hace falta ademas de la comprobacion del top 3 porque el ranking se
-// recalcula solo cada vez que alguien abre la pagina: durante la ventana, un
-// tercer puesto puede cambiar de dueño. Sin este tope, el que era tercero gira
-// el dia 25, otro le adelanta el 28 y gira tambien, y el mes acaba repartiendo
-// cinco premios en vez de tres.
+// Con la ventana sobre un mes ya cerrado el ranking no puede moverse, asi que
+// este tope ya no arregla ningun agujero: se queda como red de seguridad por
+// si el ranking se recalculara con datos corregidos a mano en mitad de la
+// ventana.
 const MAX_GIROS_POR_MES = PUESTOS_CON_PREMIO;
 
 // Premios de la ruleta. Tienen que coincidir EXACTAMENTE con los segmentos que
@@ -66,6 +75,8 @@ const PREMIOS = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────
+
+const UN_DIA = 24 * 60 * 60 * 1000;
 
 /** Compara premios ignorando tildes y mayusculas, que viajan desde el navegador. */
 function normalizar(texto) {
@@ -83,61 +94,68 @@ function premioValido(premio) {
 }
 
 /**
- * La ventana de la ruleta para el mes de esa fecha.
+ * Estado de la ruleta en un momento dado.
  *
- * @returns {{abierta:boolean, inicio:Date, fin:Date, mes:string,
+ * `mesPremiado` es SIEMPRE el mes cuyo ranking decide el proximo giro:
+ *   - ventana abierta  -> el mes anterior, que es el que se esta repartiendo
+ *   - ventana cerrada  -> el mes en curso, que es el que se esta jugando
+ *
+ * Asi el mensaje "vas en el puesto N" habla del mes correcto en los dos casos:
+ * mientras el mes corre, de tu posicion provisional; cuando se reparte, de la
+ * definitiva.
+ *
+ * @returns {{abierta:boolean, mesPremiado:string, inicio:Date, fin:Date,
  *            proximaApertura:Date, diasParaAbrir:number, diasQueQuedan:number}}
  */
-function ventanaDelMes(fecha) {
+function ventanaVigente(fecha) {
   const ahora = fecha instanceof Date ? new Date(fecha) : new Date();
+  const diaHoy = ahora.getDate();
+  const abierta = diaHoy <= DIAS_VENTANA_INICIO_DE_MES;
 
-  const ultimoDia = periodos.ultimoDiaDelMes(ahora);
-  const primerDiaVentana = Math.max(1, ultimoDia - DIAS_VENTANA_FIN_DE_MES + 1);
-
-  const inicio = periodos.diaDelMes(ahora, primerDiaVentana);
-  const fin = periodos.diaDelMes(ahora, ultimoDia);
+  // La ventana en curso (si esta abierta) o la que ya paso este mes.
+  const inicio = periodos.diaDelMes(ahora, 1);
+  const fin = periodos.diaDelMes(ahora, DIAS_VENTANA_INICIO_DE_MES);
   fin.setHours(23, 59, 59, 999);
 
-  const diaHoy = ahora.getDate();
-  const abierta = diaHoy >= primerDiaVentana;
+  // Si ya paso, la proxima es el dia 1 del mes que viene.
+  const proximaApertura = abierta ? inicio : periodos.inicioMesSiguiente(ahora);
 
-  // Si la de este mes ya paso o esta en curso, la proxima es la del mes que
-  // viene. `inicioMesSiguiente` nos deja en el dia 1; de ahi sacamos su ultimo
-  // dia, que no tiene por que ser el mismo numero (febrero, meses de 30...).
-  let proximaApertura = inicio;
-  if (abierta) {
-    const mesQueViene = periodos.inicioMesSiguiente(ahora);
-    const ultimoSiguiente = periodos.ultimoDiaDelMes(mesQueViene);
-    proximaApertura = periodos.diaDelMes(
-      mesQueViene,
-      Math.max(1, ultimoSiguiente - DIAS_VENTANA_FIN_DE_MES + 1)
-    );
-  }
-
-  const UN_DIA = 24 * 60 * 60 * 1000;
   const hoyCero = new Date(ahora); hoyCero.setHours(0, 0, 0, 0);
 
   return {
     abierta,
+    mesPremiado: abierta ? periodos.claveMesAnterior(ahora) : periodos.claveMes(ahora),
     inicio,
     fin,
-    mes: periodos.claveMes(ahora),
     proximaApertura,
     diasParaAbrir: Math.max(0, Math.round((proximaApertura - hoyCero) / UN_DIA)),
-    diasQueQuedan: abierta ? Math.max(0, ultimoDia - diaHoy) : 0
+    // Cuantos dias quedan de ventana contando hoy.
+    diasQueQuedan: abierta ? (DIAS_VENTANA_INICIO_DE_MES - diaHoy + 1) : 0
   };
 }
 
-/** "del 25 al 31 de agosto de 2026". Para los mensajes al trabajador. */
+/**
+ * Cuando se reparten los premios de un mes concreto: "del 1 al 7 de setiembre
+ * de 2026". Recibe el mes PREMIADO, no el del calendario.
+ */
+function etiquetaVentanaDe(mesPremiado) {
+  const m = String(mesPremiado || '').match(/^(\d{4})-(\d{2})$/);
+  if (!m) return '';
+
+  // El reparto ocurre el mes siguiente al premiado.
+  const siguiente = new Date(parseInt(m[1], 10), parseInt(m[2], 10), 1);
+  return `del 1 al ${DIAS_VENTANA_INICIO_DE_MES} de ${periodos.etiquetaMes(periodos.claveMes(siguiente))}`;
+}
+
+/** Etiqueta de la ventana que corresponde a esa fecha. */
 function etiquetaVentana(fecha) {
-  const v = ventanaDelMes(fecha);
-  return `del ${v.inicio.getDate()} al ${v.fin.getDate()} de ${periodos.etiquetaMes(v.mes)}`;
+  return etiquetaVentanaDe(ventanaVigente(fecha).mesPremiado);
 }
 
 /** Resumen de la configuracion, para explicarla en pantalla. */
 function describirReglas() {
   return {
-    diasVentana: DIAS_VENTANA_FIN_DE_MES,
+    diasVentana: DIAS_VENTANA_INICIO_DE_MES,
     puestosConPremio: PUESTOS_CON_PREMIO,
     maxGirosPorMes: MAX_GIROS_POR_MES,
     premios: [...PREMIOS]
@@ -145,12 +163,13 @@ function describirReglas() {
 }
 
 module.exports = {
-  DIAS_VENTANA_FIN_DE_MES,
+  DIAS_VENTANA_INICIO_DE_MES,
   PUESTOS_CON_PREMIO,
   MAX_GIROS_POR_MES,
   PREMIOS,
   premioValido,
-  ventanaDelMes,
+  ventanaVigente,
   etiquetaVentana,
+  etiquetaVentanaDe,
   describirReglas
 };
