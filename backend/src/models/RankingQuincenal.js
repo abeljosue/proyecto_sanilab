@@ -7,6 +7,8 @@ const rankingQuincenalSchema = new mongoose.Schema({
         ref: 'Usuario',
         required: true
     },
+    // OJO: guarda un MES en formato "YYYY-MM", no una quincena. El nombre es
+    // historico; renombrarlo exigiria migrar produccion. Ver utils/periodos.js.
     quincena: {
         type: String,
         required: true

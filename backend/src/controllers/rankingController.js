@@ -1,15 +1,17 @@
 const RankingQuincenal = require('../models/RankingQuincenal');
 const Autoevaluacion = require('../models/Autoevaluacion');
 const Usuario = require('../models/Usuario');
-const { getLocalDate } = require('../utils/dateUtils');
+const periodos = require('../utils/periodos');
 
-
-// Helper: Generar el identificador del mes actual "YYYY-MM"
+// El campo se llama 'quincena' pero guarda un MES ("2026-08"). El nombre es
+// historico y no se cambia: renombrarlo obligaria a migrar produccion, a la
+// que no tenemos acceso. Ver utils/periodos.js.
+//
+// Esta funcion estaba copiada identica en tres controladores. Ahora delega en
+// la definicion compartida para que ranking, ruleta y autoevaluacion no puedan
+// acabar mirando meses distintos.
 function getMesActual() {
-  const hoy = getLocalDate();
-  const anio = hoy.getFullYear();
-  const mes = String(hoy.getMonth() + 1).padStart(2, '0');
-  return `${anio}-${mes}`;
+  return periodos.claveMes();
 }
 
 // ========== 🆕 FUNCIÓN PARA COLOR DE AVATAR ==========
@@ -65,6 +67,8 @@ exports.getAllRankings = async (req, res) => {
           avatarInicial: avatarInicial,
           avatarColor: avatarColor,
           quincena: r.quincena,
+          // Etiqueta lista para mostrar: la tabla enseñaba "2026-08" en crudo.
+          etiquetaPeriodo: periodos.etiquetaMes(r.quincena),
           puntajetotal: r.puntajetotal,
           posicion: r.posicion,
           tieneruleta: r.tieneruleta,
@@ -119,8 +123,24 @@ exports.getRankingById = async (req, res) => {
 
 exports.recalcularRanking = async (req, res) => {
   try {
-    let quincena = req.body.quincena || req.query.quincena;
-    if (quincena === 'actual') quincena = getMesActual();
+    // Esta ruta NO lleva verifyAdmin a proposito: el ranking se mantiene al dia
+    // porque cada usuario la dispara al abrir la pagina. Protegerla dejaria el
+    // ranking congelado y nadie se daria cuenta, porque no fallaria nada.
+    //
+    // Lo que si se acota es QUE periodo se recalcula, porque la funcion empieza
+    // con un deleteMany: antes se aceptaba cualquier valor por query, asi que
+    // cualquier usuario podia vaciar el ranking de un mes ya cerrado. Un
+    // usuario normal solo puede recalcular el mes en curso, que es lo unico que
+    // la pagina necesita; un ADMIN puede pedir cualquiera para corregir un
+    // historico.
+    const esAdmin = req.user && req.user.rol === 'ADMIN';
+    let quincena = req.body.quincena || req.query.quincena || 'actual';
+
+    if (quincena === 'actual' || !esAdmin) quincena = getMesActual();
+
+    if (!/^\d{4}-\d{2}$/.test(quincena)) {
+      return res.status(400).json({ error: 'El periodo debe tener el formato YYYY-MM.' });
+    }
 
     await RankingQuincenal.deleteMany({ quincena });
 
@@ -154,7 +174,11 @@ exports.recalcularRanking = async (req, res) => {
       await RankingQuincenal.insertMany(nuevosRankings);
     }
 
-    res.json({ ok: true, message: `Ranking recalculado para quincena ${quincena}` });
+    res.json({
+      ok: true,
+      periodo: quincena,
+      message: `Ranking recalculado para ${periodos.etiquetaMes(quincena)}`
+    });
   } catch (err) {
     console.error('Error recalcularRanking:', err);
     res.status(500).json({ error: err.message });
@@ -198,13 +222,21 @@ exports.getRetosUsuario = async (req, res) => {
     const ranking = await RankingQuincenal.findOne({ usuarioid: userId, quincena: quincenaActual });
     
     let retos = [];
-    
-    if (ranking && ranking.puntajetotal < 20) {
+
+    // Umbral orientativo de "le vendria bien un empujon". Con dos
+    // autoevaluaciones por semana son unas ocho al mes, y el minimo que puede
+    // sacarse en cada una es 11 puntos: quien cumple el cupo entero pasa de 88
+    // aunque conteste bajo en todo. Se toma la mitad para no señalar a quien
+    // simplemente empezo el mes tarde. Antes estaba en 20, calibrado para la
+    // cadencia diaria de entonces.
+    const PUNTAJE_DE_APOYO = 44;
+
+    if (ranking && ranking.puntajetotal < PUNTAJE_DE_APOYO) {
       retos.push({
         titulo: "🎯 Mejora tu puntaje",
-        descripcion: "Completa todas tus autoevaluaciones a tiempo esta semana",
+        descripcion: "Completa tus 2 autoevaluaciones de esta semana",
         puntosBonus: 10,
-        progreso: `${ranking.puntajetotal}/20 puntos`,
+        progreso: `${ranking.puntajetotal}/${PUNTAJE_DE_APOYO} puntos`,
         completado: false
       });
     }

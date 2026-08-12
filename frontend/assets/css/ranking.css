@@ -72,6 +72,20 @@ body::before {
   font-weight: 500;
 }
 
+/* Explica en la propia pantalla quien gira la ruleta y cuando: antes habia
+   que saberselo de memoria o preguntar. */
+.ranking-nota {
+  font-size: 14px;
+  color: #e4ffee;
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(209, 250, 229, 0.35);
+  border-radius: 12px;
+  padding: 10px 16px;
+  margin: 0 auto 22px;
+  max-width: 560px;
+  line-height: 1.5;
+}
+
 .ranking-card {
   margin: 0 auto;
   border-radius: 20px;
