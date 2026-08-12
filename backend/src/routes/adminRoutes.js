@@ -19,6 +19,12 @@ router.put('/usuarios/:id/telefono', verifyToken, verifyAdmin, adminController.u
 // Solo campos que ya existen en el modelo: no requiere migracion.
 router.put('/usuarios/:id', verifyToken, verifyAdmin, verifyCanEdit, adminController.updateUsuario);
 
+// 🏷️ AREAS
+// Listar con el numero de personas de cada una, y crear las que falten sin
+// necesidad de ejecutar el sembrado contra la base de produccion.
+router.get('/areas', verifyToken, verifyAdmin, adminController.getAreas);
+router.post('/areas', verifyToken, verifyAdmin, verifyCanEdit, adminController.createArea);
+
 // ========== 🆕 NUEVAS RUTAS ==========
 
 // 📊 REPORTES Y ESTADÍSTICAS

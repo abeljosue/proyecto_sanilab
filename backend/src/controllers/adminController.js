@@ -3,6 +3,7 @@ const Asistencia = require('../models/Asistencia');
 const Usuario = require('../models/Usuario');
 const RankingQuincenal = require('../models/RankingQuincenal');
 const Autoevaluacion = require('../models/Autoevaluacion');
+const Area = require('../models/Area');
 const googleSheetsService = require('../services/googleSheetsService');
 const { getFechaHoyMidnight, getRangoHoy, getLocalDate } = require('../utils/dateUtils');
 const turnos = require('../utils/turnos');
@@ -777,6 +778,70 @@ exports.getListaUsuarios = async (req, res) => {
   } catch (error) {
     console.error('Error al listar usuarios:', error);
     res.status(500).json({ success: false, error: 'Error del servidor' });
+  }
+};
+
+// ========== AREAS: LISTAR Y CREAR DESDE EL PANEL ==========
+// El sembrado (seeds/seed_mongo.js) solo sirve para instalaciones nuevas: en
+// produccion no se puede ejecutar sin la cadena de conexion. Estas dos rutas
+// permiten crear las areas que falten desde el propio panel, sin tocar la base
+// a mano y sin migraciones.
+exports.getAreas = async (req, res) => {
+  try {
+    const areas = await Area.find({}).sort({ nombre: 1 });
+
+    // Cuantas personas hay en cada area, para ver de un vistazo cuales estan
+    // vacias y cuales se usan de verdad.
+    const conteos = await Usuario.aggregate([
+      { $match: { archivado: { $ne: true } } },
+      { $group: { _id: '$areaid', total: { $sum: 1 } } }
+    ]);
+    const porArea = new Map(conteos.map(c => [String(c._id), c.total]));
+
+    res.json({
+      success: true,
+      areas: areas.map(a => ({
+        id: a._id,
+        nombre: a.nombre,
+        descripcion: a.descripcion || '',
+        activo: a.activo !== false,
+        usuarios: porArea.get(String(a._id)) || 0
+      })),
+      sinArea: porArea.get('null') || porArea.get('undefined') || 0
+    });
+  } catch (error) {
+    console.error('Error al listar areas:', error);
+    res.status(500).json({ success: false, error: 'Error del servidor' });
+  }
+};
+
+exports.createArea = async (req, res) => {
+  try {
+    const nombre = String(req.body.nombre || '').trim();
+    const descripcion = String(req.body.descripcion || '').trim();
+
+    if (!nombre) {
+      return res.status(400).json({ success: false, error: 'El nombre del área es obligatorio.' });
+    }
+
+    // El nombre es unico en el modelo. Se comprueba antes para devolver un
+    // mensaje claro en lugar del error E11000 de Mongo.
+    // La comparacion ignora mayusculas para no acabar con "RRCC" y "rrcc".
+    const yaExiste = await Area.findOne({ nombre: new RegExp(`^${escaparRegex(nombre)}$`, 'i') });
+    if (yaExiste) {
+      return res.status(409).json({ success: false, error: `El área "${yaExiste.nombre}" ya existe.` });
+    }
+
+    const area = await Area.create({ nombre, descripcion });
+
+    res.status(201).json({
+      success: true,
+      message: `Área "${area.nombre}" creada.`,
+      area: { id: area._id, nombre: area.nombre, descripcion: area.descripcion || '', usuarios: 0 }
+    });
+  } catch (error) {
+    console.error('Error al crear area:', error);
+    res.status(500).json({ success: false, error: error.message || 'Error del servidor' });
   }
 };
 
