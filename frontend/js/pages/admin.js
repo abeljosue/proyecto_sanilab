@@ -139,9 +139,9 @@ function formatearHoraCorta(hora) {
   return `${h}:${m}`;
 }
 
-// La tardanza se calcula por turno en el servidor. Se muestran los minutos solo
-// cuando superan la tolerancia; llegar unos minutos tarde dentro del margen se
-// considera puntual y no debe destacarse como incidencia.
+// La tardanza la calcula el servidor con la regla del minuto. Se muestran los
+// minutos solo cuando superan la tolerancia; marcar dentro del margen de su hora
+// se considera puntual y no debe destacarse como incidencia.
 function formatearTardanza(minutos, esTardanza) {
   if (minutos === null || minutos === undefined) return '—';
   if (esTardanza) return `${minutos} min`;
@@ -459,32 +459,31 @@ async function mostrarReporteAsistencia() {
 async function mostrarEstadisticasUsuario() {
   const token = localStorage.getItem('token');
 
-  // Antes se pedía escribir a mano el ObjectId de MongoDB (24 caracteres), lo que
-  // hacía la función inutilizable en la práctica. Ahora se elige de un desplegable.
-  let opciones = {};
+  // Antes se pedía escribir a mano el ObjectId de MongoDB, y luego se pasó a un
+  // desplegable. Con la plantilla creciendo, un desplegable largo obliga a
+  // buscar a ojo: ahora se escribe el nombre y la lista se filtra al teclear.
+  //
+  // La lista NO depende de la asistencia: sale de la colección de usuarios, así
+  // que también aparece quien nunca ha marcado (sus cifras salen a cero).
+  // Se piden los archivados para poder consultarlos, señalados como tales.
+  let lista = [];
   try {
-    const listaRes = await axios.get('/api/admin/usuarios', { headers: { Authorization: `Bearer ${token}` } });
-    listaRes.data.usuarios.forEach(u => {
-      opciones[u.id] = u.rol === 'ADMIN' ? `${u.nombre} (admin)` : u.nombre;
+    const listaRes = await axios.get('/api/admin/usuarios', {
+      params: { incluirArchivados: 'true' },
+      headers: { Authorization: `Bearer ${token}` }
     });
+    lista = listaRes.data.usuarios || [];
   } catch (error) {
     Swal.fire('Error', 'No se pudo cargar la lista de usuarios', 'error');
     return;
   }
 
-  if (Object.keys(opciones).length === 0) {
+  if (lista.length === 0) {
     Swal.fire('Sin usuarios', 'No hay usuarios disponibles para consultar', 'info');
     return;
   }
 
-  const { value: usuarioId } = await Swal.fire({
-    title: '📈 Estadísticas por trabajador',
-    input: 'select',
-    inputOptions: opciones,
-    inputPlaceholder: 'Selecciona un trabajador',
-    showCancelButton: true,
-    confirmButtonText: 'Buscar'
-  });
+  const usuarioId = await elegirTrabajador(lista);
   if (!usuarioId) return;
 
   try {
@@ -504,7 +503,8 @@ async function mostrarEstadisticasUsuario() {
         <tr><td>🏆 Última Posición Ranking</td><td><strong>#${stats.ultimaPosicionRanking || 'N/A'}</strong></td></tr>
       </table>
       <p style="font-size:12px; color:#666; margin-top:10px;">
-        ⏰ La tardanza se calcula comparando la marcación con la hora de su turno.
+        ⏰ Sin horarios individuales, se cuenta como tardanza marcar pasados los 15 primeros
+        minutos de la hora. No se compara contra un horario asignado.
       </p>
     `;
     Swal.fire({ title: `📈 ${nombreUsuario}`, html: html, confirmButtonText: 'Cerrar' });
@@ -904,6 +904,186 @@ const btnReportesWhatsapp = document.getElementById('btnReportesWhatsapp');
 if (btnReportesWhatsapp) btnReportesWhatsapp.onclick = () => mostrarSelectorReportes();
 
 // ==========================================================================
+//  BUSCADOR DE TRABAJADOR CON SUGERENCIAS
+//  Se escribe el nombre y la lista se filtra al teclear. Funciona también con
+//  el correo y con el área, porque a veces se recuerda antes dónde trabaja
+//  alguien que cómo se apellida.
+// ==========================================================================
+
+/** Quita tildes y pasa a minúsculas, para que "Angeles" encuentre a "Ángeles". */
+function normalizar(texto) {
+  return String(texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+/**
+ * Abre un buscador y devuelve el id del trabajador elegido, o null.
+ * @param {Array} lista usuarios tal y como los devuelve /api/admin/usuarios
+ */
+async function elegirTrabajador(lista) {
+  const indexados = lista.map(u => ({
+    ...u,
+    busqueda: normalizar(`${u.nombre} ${u.correo} ${u.area} ${u.telefono || ''}`)
+  }));
+
+  let seleccionado = null;
+
+  const pintar = (filtro) => {
+    const ul = document.getElementById('sugerencias');
+    if (!ul) return;
+    const q = normalizar(filtro).trim();
+    const encontrados = (q
+      ? indexados.filter(u => q.split(/\s+/).every(parte => u.busqueda.includes(parte)))
+      : indexados
+    ).slice(0, 30);
+
+    if (encontrados.length === 0) {
+      ul.innerHTML = '<li class="vacio">Ningún trabajador coincide</li>';
+      return;
+    }
+
+    ul.innerHTML = encontrados.map((u, i) => `
+      <li data-id="${u.id}" class="${i === 0 ? 'marcado' : ''}">
+        ${escaparHtml(u.nombre)}${u.rol === 'ADMIN' ? ' 🛡️' : ''}${u.archivado ? ' <em>(archivado)</em>' : ''}
+        <span class="sug-sec">${escaparHtml(u.area)} · ${u.telefono ? escaparHtml(u.telefono) : 'sin teléfono'}</span>
+      </li>`).join('');
+
+    ul.querySelectorAll('li[data-id]').forEach(li => {
+      li.addEventListener('click', () => {
+        seleccionado = li.dataset.id;
+        Swal.clickConfirm();
+      });
+    });
+  };
+
+  const res = await Swal.fire({
+    title: '📈 Buscar trabajador',
+    html: `
+      <div class="buscador-sug">
+        <input id="inputBuscarTrabajador" class="swal2-input" style="margin:0 0 6px; width:100%;"
+               placeholder="Escribe un nombre, correo o área..." autocomplete="off">
+        <ul id="sugerencias" class="lista-sug"></ul>
+      </div>
+    `,
+    showCancelButton: true,
+    confirmButtonText: 'Ver estadísticas',
+    cancelButtonText: 'Cancelar',
+    confirmButtonColor: '#3b82f6',
+    didOpen: () => {
+      const input = document.getElementById('inputBuscarTrabajador');
+      pintar('');
+      input.focus();
+      input.addEventListener('input', () => pintar(input.value));
+      // Enter elige la primera sugerencia, para no tener que usar el ratón.
+      input.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const primero = document.querySelector('#sugerencias li[data-id]');
+        if (primero) { seleccionado = primero.dataset.id; Swal.clickConfirm(); }
+      });
+    },
+    preConfirm: () => {
+      if (!seleccionado) {
+        const primero = document.querySelector('#sugerencias li[data-id]');
+        if (primero) seleccionado = primero.dataset.id;
+      }
+      if (!seleccionado) {
+        Swal.showValidationMessage('Elige un trabajador de la lista.');
+        return false;
+      }
+      return true;
+    }
+  });
+
+  return res.isConfirmed ? seleccionado : null;
+}
+
+// ==========================================================================
+//  AREAS
+//  El sembrado solo sirve para instalaciones nuevas. Sin acceso a la base de
+//  produccion, la unica via para crear un area que falte es desde aqui.
+// ==========================================================================
+
+async function mostrarGestionAreas() {
+  const token = localStorage.getItem('token');
+
+  try {
+    Swal.fire({ title: 'Cargando áreas...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    const res = await axios.get('/api/admin/areas', { headers: { Authorization: `Bearer ${token}` } });
+    const areas = res.data.areas || [];
+
+    const filas = areas.map(a => `
+      <tr>
+        <td style="text-align:left; padding:5px 8px;"><strong>${escaparHtml(a.nombre)}</strong>
+          ${a.descripcion ? `<br><span style="font-size:11.5px; color:#777;">${escaparHtml(a.descripcion)}</span>` : ''}
+        </td>
+        <td style="text-align:center; padding:5px 8px; ${a.usuarios === 0 ? 'color:#999;' : ''}">${a.usuarios}</td>
+      </tr>`).join('');
+
+    await Swal.fire({
+      title: '🏷️ Áreas',
+      html: `
+        <p style="font-size:12.5px; color:#666; text-align:left; margin:0 0 10px;">
+          ${areas.length} áreas. La columna de la derecha son las personas asignadas.
+        </p>
+        <div style="max-height:260px; overflow-y:auto; border:1px solid #eee; border-radius:8px;">
+          <table style="width:100%; border-collapse:collapse; font-size:13px;">
+            <thead><tr style="background:#f5f5f5;">
+              <th style="text-align:left; padding:6px 8px;">Área</th>
+              <th style="padding:6px 8px;">Personas</th>
+            </tr></thead>
+            <tbody>${filas}</tbody>
+          </table>
+        </div>
+        <hr style="margin:14px 0; border:none; border-top:1px solid #eee;">
+        <div style="text-align:left;">
+          <label style="font-size:13px; font-weight:600;">Crear área nueva</label>
+          <input id="nuevaAreaNombre" class="swal2-input" style="margin:6px 0 6px; width:100%;"
+                 placeholder="Nombre corto, ej. RRCC">
+          <input id="nuevaAreaDesc" class="swal2-input" style="margin:0 0 6px; width:100%;"
+                 placeholder="Descripción (opcional), ej. Relaciones Comunitarias">
+          <button type="button" id="btnCrearArea"
+                  style="background:#14b8a6; color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer;">➕ Crear</button>
+        </div>
+      `,
+      width: '560px',
+      showConfirmButton: false,
+      showCloseButton: true,
+      didOpen: () => {
+        const btn = Swal.getPopup().querySelector('#btnCrearArea');
+        btn.addEventListener('click', async () => {
+          const nombre = document.getElementById('nuevaAreaNombre').value.trim();
+          const descripcion = document.getElementById('nuevaAreaDesc').value.trim();
+          if (!nombre) {
+            Swal.showValidationMessage('Escribe el nombre del área.');
+            return;
+          }
+          try {
+            btn.disabled = true;
+            const r = await axios.post('/api/admin/areas', { nombre, descripcion }, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            await Swal.fire({ icon: 'success', title: 'Área creada', text: r.data.message, timer: 1600, showConfirmButton: false });
+            areasCache = null; // el desplegable de editar usuario debe refrescarse
+            mostrarGestionAreas();
+          } catch (e) {
+            btn.disabled = false;
+            Swal.showValidationMessage(e.response?.data?.error || 'No se pudo crear el área');
+          }
+        });
+      }
+    });
+  } catch (error) {
+    Swal.fire('Error', error.response?.data?.error || 'No se pudieron cargar las áreas', 'error');
+  }
+}
+
+const btnGestionAreas = document.getElementById('btnGestionAreas');
+if (btnGestionAreas) btnGestionAreas.onclick = mostrarGestionAreas;
+
+// ==========================================================================
 //  GESTION DE USUARIOS
 //  Hasta ahora el unico modo de corregir un telefono era abrir la lista de
 //  faltantes del dia y pulsar el lapiz, asi que solo se podia editar a quien
@@ -1077,7 +1257,7 @@ if (btnGestionUsuarios) {
     const sec = document.getElementById('seccionUsuarios');
     const visible = sec.style.display === 'block';
     sec.style.display = visible ? 'none' : 'block';
-    btnGestionUsuarios.textContent = visible ? '👥 Usuarios y teléfonos' : '👥 Ocultar usuarios';
+    btnGestionUsuarios.textContent = visible ? '👥 Gestionar usuarios' : '👥 Ocultar gestión';
     if (!visible) {
       cargarUsuarios();
       sec.scrollIntoView({ behavior: 'smooth', block: 'start' });

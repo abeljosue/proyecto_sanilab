@@ -29,7 +29,8 @@
       </div>
       <div class="acciones-grupo">
         <span class="acciones-titulo">Gestión</span>
-        <button id="btnGestionUsuarios" class="btn-accion btn-usuarios">👥 Usuarios y teléfonos</button>
+        <button id="btnGestionUsuarios" class="btn-accion btn-usuarios">👥 Gestionar usuarios</button>
+        <button id="btnGestionAreas" class="btn-accion btn-areas">🏷️ Áreas</button>
         <button id="btnUsuariosBloqueados" class="btn-accion btn-bloqueados">🔒 Bloqueados</button>
       </div>
       <div class="acciones-grupo">
@@ -43,7 +44,7 @@
          GESTION DE USUARIOS  (oculta hasta que se pide)
          ========================================================== -->
     <section id="seccionUsuarios" class="seccion" style="display:none;">
-      <h2>Usuarios y teléfonos</h2>
+      <h2>Gestionar usuarios</h2>
       <p class="ayuda">
         Quienes se registraron antes del 10/08/2026 tienen el teléfono vacío por un
         fallo del formulario. Desde aquí se rellenan sin tocar la base de datos.
@@ -116,7 +117,7 @@
         <span class="sep">→</span>
         <input type="date" id="fechaHasta" title="Hasta">
         <button id="btnFiltrarHoras" type="button">Aplicar</button>
-        <button id="btnLimpiarFiltros" type="button" class="btn-sec">Limpiar</button>
+        <button id="btnLimpiarFiltros" type="button" class="btn-sec" title="Vuelve a mostrar el día de hoy. No borra ningún dato.">Quitar filtros</button>
         <button id="btnExportarSheets" type="button" class="btn-export-sheets" title="Exporta a Google Sheets lo que muestra la tabla">📊 Exportar</button>
       </div>
 

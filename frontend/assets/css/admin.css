@@ -476,3 +476,46 @@ h2::before {
   color: #f87171;
   font-style: italic;
 }
+
+.btn-areas { background: linear-gradient(135deg, #14b8a6, #0f766e); }
+
+/* Buscador con sugerencias (estadisticas por trabajador). */
+.buscador-sug {
+  position: relative;
+  text-align: left;
+}
+
+.lista-sug {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #d7d7d7;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.lista-sug li {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13.5px;
+  color: #333;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.lista-sug li:last-child { border-bottom: none; }
+.lista-sug li:hover,
+.lista-sug li.marcado { background: #e0f2fe; }
+
+.lista-sug .sug-sec {
+  display: block;
+  font-size: 11.5px;
+  color: #777;
+}
+
+.lista-sug .vacio {
+  color: #888;
+  cursor: default;
+  font-style: italic;
+}
