@@ -1,6 +1,7 @@
 const Asistencia = require('../models/Asistencia');
 const HorarioTrabajador = require('../models/HorarioTrabajador');
 const { getFechaHoyMidnight, getLocalDate } = require('../utils/dateUtils');
+const turnos = require('../utils/turnos');
 
 // ========== LÍMITES DEL CIERRE AUTOMÁTICO ==========
 // Cuando alguien se deja la jornada abierta, el sistema la cierra por él y le
@@ -45,15 +46,10 @@ function horaSalidaTrasLimite(horaEntrada, limiteHoras) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-function calcularMinutosTarde(horaEsperada, horaActual) {
-  const [hE, mE] = horaEsperada.split(':').map(Number);
-  const [hA, mA] = horaActual.split(':').map(Number);
-
-  const minutosEsperados = hE * 60 + mE;
-  const minutosActuales = hA * 60 + mA;
-
-  return Math.max(0, minutosActuales - minutosEsperados);
-}
+// calcularMinutosTarde() se elimino: hacia una resta simple que no contemplaba
+// los turnos que cruzan medianoche (entrar 22:00 y marcar 00:30 daba 0 en vez
+// de 150 minutos). Ahora el calculo vive en utils/turnos.evaluarEntrada, que es
+// la misma que usan los reportes.
 
 function timeToSeconds(timeStr) {
   if (!timeStr) return 0;
@@ -167,9 +163,13 @@ exports.marcarEntrada = async (req, res) => {
       });
 
       if (horario) {
-        const horaEsperada = horario.hora_entrada_esperada;
-        tardanzaMinutos = calcularMinutosTarde(horaEsperada, horaLocal);
-        esTarde = tardanzaMinutos > 0;
+        // Se usa la MISMA funcion que los reportes del panel (utils/turnos),
+        // no un calculo propio. Antes habia dos definiciones de "tardanza"
+        // conviviendo y podian contradecirse: la app avisaba al trabajador
+        // mientras el panel lo daba por puntual.
+        const ev = turnos.evaluarEntrada(horaLocal, horario.hora_entrada_esperada);
+        tardanzaMinutos = ev.minutosTarde;
+        esTarde = ev.esTardanza;
       }
 
       asistencia = new Asistencia({
@@ -216,11 +216,23 @@ exports.marcarEntrada = async (req, res) => {
 
     const nuevoTramo = asistencia.tramos[asistencia.tramos.length - 1];
 
+    // ⏸️ AVISO DE TARDANZA DESACTIVADO (12/08/2026, decision de Eric).
+    //
+    // Los horarios individuales se acaban de implantar y avisar al trabajador
+    // en su cara nada mas marcar resultaba brusco. El dato SI se sigue
+    // calculando y guardando en 'tardanza_minutos', y el panel lo muestra con
+    // normalidad: lo unico que se retira es el mensaje al trabajador.
+    //
+    // Para volver a activarlo basta con devolver el mensaje condicional:
+    //   message: esTarde
+    //     ? `Entrada registrada. Llegaste ${tardanzaMinutos} min tarde ⚠️`
+    //     : 'Jornada iniciada/reanudada con éxito ✅',
+    //
+    // 'tardanza' y 'esTarde' se siguen enviando en la respuesta: ningun sitio
+    // del frontend los usa hoy, pero estan ahi para cuando se reactive.
     return res.json({
       ok: true,
-      message: esTarde
-        ? `Entrada registrada. Llegaste ${tardanzaMinutos} min tarde ⚠️`
-        : 'Jornada iniciada/reanudada con éxito ✅',
+      message: 'Jornada iniciada/reanudada con éxito ✅',
       asistenciaId: asistencia.id,
       tramoId: nuevoTramo._id,
       tardanza: tardanzaMinutos,
