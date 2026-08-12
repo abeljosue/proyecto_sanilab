@@ -12,12 +12,20 @@ router.post('/export-horas-sheets', verifyToken, verifyAdmin, adminController.ex
 router.get('/faltantes-hoy', verifyToken, verifyAdmin, adminController.getFaltantesHoy);
 router.get('/faltantes-autoevaluacion-hoy', verifyToken, verifyAdmin, adminController.getFaltantesAutoevaluacionHoy);
 
-router.put('/usuarios/:id/archivar', verifyToken, verifyAdmin, adminController.toggleArchivarUsuario);
+// Dar de baja / reincorporar. Lleva verifyCanEdit porque la cuenta de gerencia
+// es de solo lectura y hasta ahora podia dar de baja a cualquiera.
+router.put('/usuarios/:id/archivar', verifyToken, verifyAdmin, verifyCanEdit, adminController.toggleArchivarUsuario);
 router.put('/usuarios/:id/telefono', verifyToken, verifyAdmin, adminController.updateTelefono);
 
 // Editar los datos de contacto de un usuario (nombre, apellido, telefono, area...).
 // Solo campos que ya existen en el modelo: no requiere migracion.
 router.put('/usuarios/:id', verifyToken, verifyAdmin, verifyCanEdit, adminController.updateUsuario);
+
+// 🗓️ HORARIO SEMANAL de un trabajador (modelo HorarioTrabajador, ya existente).
+// Va aqui y no en /api/horarios para heredar verifyCanEdit: la cuenta de
+// gerencia es de solo lectura y alli no lo estaba.
+router.get('/usuarios/:id/horario', verifyToken, verifyAdmin, adminController.getHorarioUsuario);
+router.put('/usuarios/:id/horario', verifyToken, verifyAdmin, verifyCanEdit, adminController.guardarHorarioUsuario);
 
 // 🏷️ AREAS
 // Listar con el numero de personas de cada una, y crear las que falten sin

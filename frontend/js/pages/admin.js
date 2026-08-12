@@ -431,12 +431,12 @@ async function mostrarReporteAsistencia() {
       </div>
       <p style="font-size:12px; color:#666; text-align:left; margin-bottom:10px;">
         ⚠️ Las filas marcadas como <strong>Auto</strong> tienen horas estimadas por el sistema porque el trabajador no marcó salida.<br>
-        ⏰ Sin horarios individuales: ${describirTurnos(data.configuracionTurnos)}.<br>
-        La columna de tardanza indica cuántos minutos pasó del margen dentro de su hora, no respecto a un horario asignado.
+        ⏰ Quien tiene <strong>horario</strong> se juzga contra su hora de entrada, con ${data.configuracionTurnos?.toleranciaMinutos ?? 15} min de tolerancia.<br>
+        Quien no lo tiene aún cae en la regla antigua: ${describirTurnos(data.configuracionTurnos)}. La columna <em>Esperada</em> indica cuál se aplicó.
       </p>
       <div style="max-height:400px; overflow:auto;">
         <table style="width:100%; border-collapse:collapse;">
-          <thead><tr style="background:#22c55e; color:white;"><th>Usuario</th><th>Fecha</th><th>Turno</th><th>Entrada</th><th>Salida</th><th>Horas</th><th>Tardanza</th></tr></thead>
+          <thead><tr style="background:#22c55e; color:white;"><th>Usuario</th><th>Fecha</th><th>Entrada</th><th>Esperada</th><th>Salida</th><th>Horas</th><th>Tardanza</th></tr></thead>
           <tbody>
     `;
     data.reporte.forEach(r => {
@@ -445,7 +445,10 @@ async function mostrarReporteAsistencia() {
         : '';
       const fondoFila = r.cierreAutomatico ? 'background-color: rgba(255, 152, 0, 0.15);' : '';
       const estiloTardanza = r.esTardanza ? 'color:#c62828; font-weight:bold;' : 'color:#999;';
-      html += `<tr style="${fondoFila}"><td>${r.nombre} ${r.apellido}</td><td>${new Date(r.fecha).toLocaleDateString()}</td><td>${r.turno || '—'}</td><td>${formatearHoraCorta(r.horaEntrada)}</td><td>${formatearHoraCorta(r.horaSalida)}${marcaAuto}</td><td>${r.horasTrabajadas}</td><td style="${estiloTardanza}">${formatearTardanza(r.tardanza, r.esTardanza)}</td></tr>`;
+      const celdaEsperada = r.horaEsperada
+        ? `<span title="Se compara con su horario">${r.horaEsperada}</span>`
+        : '<span style="color:#bbb;" title="Sin horario: se usa la regla del minuto">sin horario</span>';
+      html += `<tr style="${fondoFila}"><td>${r.nombre} ${r.apellido}</td><td>${new Date(r.fecha).toLocaleDateString()}</td><td>${formatearHoraCorta(r.horaEntrada)}</td><td>${celdaEsperada}</td><td>${formatearHoraCorta(r.horaSalida)}${marcaAuto}</td><td>${r.horasTrabajadas}</td><td style="${estiloTardanza}">${formatearTardanza(r.tardanza, r.esTardanza)}</td></tr>`;
     });
     html += `</tbody></table></div>`;
 
@@ -1102,22 +1105,26 @@ function pintarTablaUsuarios() {
 
   const texto = (document.getElementById('buscarUsuario')?.value || '').trim().toLowerCase();
   const soloSinTelefono = document.getElementById('chkSoloSinTelefono')?.checked;
+  const soloSinHorario = document.getElementById('chkSoloSinHorario')?.checked;
 
   const lista = usuariosCache.filter(u => {
     if (soloSinTelefono && u.telefono) return false;
+    if (soloSinHorario && u.diasHorario) return false;
     if (!texto) return true;
     return `${u.nombre} ${u.correo} ${u.area}`.toLowerCase().includes(texto);
   });
 
-  const sinTel = usuariosCache.filter(u => !u.telefono).length;
-  const contador = document.getElementById('contadorSinTelefono');
-  if (contador) {
-    contador.textContent = sinTel;
-    contador.classList.toggle('ok', sinTel === 0);
-  }
+  const marcar = (id, cuantos) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = cuantos;
+    el.classList.toggle('ok', cuantos === 0);
+  };
+  marcar('contadorSinTelefono', usuariosCache.filter(u => !u.telefono).length);
+  marcar('contadorSinHorario', usuariosCache.filter(u => !u.diasHorario).length);
 
   if (lista.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:16px; color:#94a3b8;">Ningún usuario coincide.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:16px; color:#94a3b8;">Ningún usuario coincide.</td></tr>';
     return;
   }
 
@@ -1128,21 +1135,35 @@ function pintarTablaUsuarios() {
     const archivado = u.archivado
       ? ' <span style="font-size:11px; color:#94a3b8;">(archivado)</span>'
       : '';
+    const horario = u.diasHorario
+      ? `<span style="color:#4ade80;">${u.diasHorario} día${u.diasHorario === 1 ? '' : 's'}</span>`
+      : '<span class="sin-dato">sin horario</span>';
     return `
       <tr style="opacity:${u.archivado ? '0.6' : '1'};">
         <td><strong>${escaparHtml(u.nombre)}</strong>${archivado}</td>
         <td style="font-size:12.5px;">${escaparHtml(u.correo)}</td>
         <td>${tel}</td>
+        <td>${horario}</td>
         <td>${escaparHtml(u.area)}</td>
         <td>${u.rol === 'ADMIN' ? '🛡️ Admin' : 'Usuario'}</td>
         <td>
-          <button class="btn-sec" data-editar="${u.id}" style="padding:5px 11px;">✏️ Editar</button>
+          <button class="btn-sec" data-editar="${u.id}" style="padding:5px 11px;">✏️ Datos</button>
+          <button class="btn-sec" data-horario="${u.id}" style="padding:5px 11px;">🗓️ Horario</button>
+          <button class="btn-sec ${u.archivado ? 'btn-alta' : 'btn-baja'}" data-baja="${u.id}" style="padding:5px 11px;">${u.archivado ? '↩️ Reincorporar' : '🚪 Dar de baja'}</button>
         </td>
       </tr>`;
   }).join('');
 
   tbody.querySelectorAll('[data-editar]').forEach(btn => {
     btn.addEventListener('click', () => editarUsuario(btn.dataset.editar));
+  });
+  tbody.querySelectorAll('[data-horario]').forEach(btn => {
+    const u = usuariosCache.find(x => String(x.id) === String(btn.dataset.horario));
+    btn.addEventListener('click', () => editarHorario(btn.dataset.horario, u ? u.nombre : ''));
+  });
+  tbody.querySelectorAll('[data-baja]').forEach(btn => {
+    const u = usuariosCache.find(x => String(x.id) === String(btn.dataset.baja));
+    btn.addEventListener('click', () => cambiarSituacion(btn.dataset.baja, u));
   });
 }
 
@@ -1161,7 +1182,7 @@ async function cargarUsuarios() {
   const token = localStorage.getItem('token');
   const incluirArchivados = document.getElementById('chkIncluirArchivados')?.checked;
   const tbody = document.getElementById('tablaUsuarios');
-  if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:16px;">Cargando…</td></tr>';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:16px;">Cargando…</td></tr>';
 
   try {
     const res = await axios.get('/api/admin/usuarios', {
@@ -1171,8 +1192,239 @@ async function cargarUsuarios() {
     usuariosCache = res.data.usuarios || [];
     pintarTablaUsuarios();
   } catch (error) {
-    if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#f87171;">No se pudo cargar la lista.</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#f87171;">No se pudo cargar la lista.</td></tr>';
     Swal.fire('Error', error.response?.data?.error || 'No se pudo cargar la lista de usuarios', 'error');
+  }
+}
+
+// --------------------------------------------------------------------------
+//  DAR DE BAJA / REINCORPORAR
+//  Usa el campo 'archivado', que ya cerraba el acceso en todo el sistema.
+//  No borra nada: sus registros de asistencia se conservan para poder
+//  consultar meses anteriores.
+// --------------------------------------------------------------------------
+
+async function cambiarSituacion(id, u) {
+  if (!u) return;
+  const daDeBaja = !u.archivado;
+
+  const confirmacion = await Swal.fire({
+    title: daDeBaja ? '¿Dar de baja?' : '¿Reincorporar?',
+    html: daDeBaja
+      ? `<p style="text-align:left; font-size:13.5px;">
+           <strong>${escaparHtml(u.nombre)}</strong> dejará de:
+         </p>
+         <ul style="text-align:left; font-size:13px; margin:6px 0 10px 18px;">
+           <li>poder iniciar sesión</li>
+           <li>aparecer en los reportes de WhatsApp</li>
+           <li>contar en la lista de quienes no han marcado</li>
+           <li>salir en el ranking</li>
+         </ul>
+         <p style="text-align:left; font-size:12.5px; color:#666;">
+           <strong>No se borra nada.</strong> Su historial de asistencia se conserva
+           y puedes reincorporarla cuando quieras.
+         </p>`
+      : `<p style="text-align:left; font-size:13.5px;">
+           <strong>${escaparHtml(u.nombre)}</strong> volverá a tener acceso y
+           reaparecerá en los reportes.
+         </p>`,
+    icon: daDeBaja ? 'warning' : 'question',
+    showCancelButton: true,
+    confirmButtonText: daDeBaja ? 'Sí, dar de baja' : 'Sí, reincorporar',
+    cancelButtonText: 'Cancelar',
+    confirmButtonColor: daDeBaja ? '#e11d48' : '#16a34a'
+  });
+
+  if (!confirmacion.isConfirmed) return;
+
+  try {
+    const token = localStorage.getItem('token');
+    const res = await axios.put(`/api/admin/usuarios/${id}/archivar`, {}, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    await Swal.fire({
+      icon: 'success',
+      title: daDeBaja ? 'Dado de baja' : 'Reincorporado',
+      text: res.data.message,
+      timer: 2600,
+      showConfirmButton: false
+    });
+
+    // Si se acaba de dar de baja y no se estan mostrando los archivados,
+    // desaparecera de la lista: se avisa para que no parezca que se borro.
+    await cargarUsuarios();
+    cargarHoras();
+  } catch (error) {
+    Swal.fire('Error', error.response?.data?.error || 'No se pudo cambiar la situación', 'error');
+  }
+}
+
+// --------------------------------------------------------------------------
+//  HORARIO SEMANAL
+//  Se guarda en HorarioTrabajador (una fila por dia), que ya existia en el
+//  modelo pero no tenia pantalla. Se eligio frente a un unico campo en Usuario
+//  porque 6 de las 22 personas entran a hora distinta segun el dia.
+// --------------------------------------------------------------------------
+
+const DIAS = [
+  { n: 1, nombre: 'Lunes' },
+  { n: 2, nombre: 'Martes' },
+  { n: 3, nombre: 'Miércoles' },
+  { n: 4, nombre: 'Jueves' },
+  { n: 5, nombre: 'Viernes' },
+  { n: 6, nombre: 'Sábado' },
+  { n: 0, nombre: 'Domingo' }
+];
+
+async function editarHorario(id, nombreUsuario) {
+  const token = localStorage.getItem('token');
+
+  let actuales = [];
+  try {
+    Swal.fire({ title: 'Cargando horario...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    const res = await axios.get(`/api/admin/usuarios/${id}/horario`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    actuales = res.data.dias || [];
+  } catch (e) {
+    Swal.fire('Error', e.response?.data?.error || 'No se pudo cargar el horario', 'error');
+    return;
+  }
+
+  const porDia = new Map(actuales.map(d => [d.dia_semana, d]));
+
+  const filas = DIAS.map(d => {
+    const h = porDia.get(d.n);
+    return `
+      <tr data-dia="${d.n}">
+        <td style="padding:4px 6px; text-align:left;">
+          <label class="check" style="gap:8px;">
+            <input type="checkbox" class="chkDia" ${h ? 'checked' : ''}>
+            <span>${d.nombre}</span>
+          </label>
+        </td>
+        <td style="padding:4px 6px;">
+          <input type="time" class="horaEntrada" value="${h ? h.hora_entrada_esperada : ''}" ${h ? '' : 'disabled'}
+                 style="padding:4px 6px; border:1px solid #ccc; border-radius:5px;">
+        </td>
+        <td style="padding:4px 6px;">
+          <input type="time" class="horaSalida" value="${h ? h.hora_salida_esperada : ''}" ${h ? '' : 'disabled'}
+                 style="padding:4px 6px; border:1px solid #ccc; border-radius:5px;">
+        </td>
+      </tr>`;
+  }).join('');
+
+  const { value: guardar } = await Swal.fire({
+    title: `🗓️ Horario de ${escaparHtml(nombreUsuario)}`,
+    html: `
+      <p style="font-size:12.5px; color:#666; text-align:left; margin:0 0 10px;">
+        Marca los días que trabaja e indica sus horas. Los días sin marcar se
+        entienden como que <strong>no se le espera</strong>.
+      </p>
+      <table style="width:100%; border-collapse:collapse; font-size:13px;">
+        <thead><tr style="background:#f5f5f5;">
+          <th style="padding:5px 6px; text-align:left;">Día</th>
+          <th style="padding:5px 6px;">Entrada</th>
+          <th style="padding:5px 6px;">Salida</th>
+        </tr></thead>
+        <tbody id="filasHorario">${filas}</tbody>
+      </table>
+      <div style="text-align:left; margin-top:10px;">
+        <button type="button" id="btnCopiarLunes"
+                style="background:#e5e7eb; color:#374151; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12.5px;">
+          ⇩ Copiar el lunes a los días vacíos
+        </button>
+      </div>
+    `,
+    width: '520px',
+    showCancelButton: true,
+    confirmButtonText: 'Guardar horario',
+    cancelButtonText: 'Cancelar',
+    confirmButtonColor: '#8b5cf6',
+    didOpen: () => {
+      const popup = Swal.getPopup();
+
+      // Marcar un dia habilita sus horas; desmarcarlo las apaga.
+      popup.querySelectorAll('tr[data-dia]').forEach(tr => {
+        const chk = tr.querySelector('.chkDia');
+        const ent = tr.querySelector('.horaEntrada');
+        const sal = tr.querySelector('.horaSalida');
+        chk.addEventListener('change', () => {
+          ent.disabled = !chk.checked;
+          sal.disabled = !chk.checked;
+          if (!chk.checked) { ent.value = ''; sal.value = ''; }
+        });
+      });
+
+      // La mayoria hace el mismo horario toda la semana: esto evita repetirlo.
+      // Solo rellena los dias marcados que esten VACIOS. Si alguien ya puso a
+      // mano un dia distinto (el sabado mas corto, el domingo de tarde), se
+      // respeta: antes lo pisaba en silencio y se perdia el dato.
+      popup.querySelector('#btnCopiarLunes').addEventListener('click', () => {
+        const lunes = popup.querySelector('tr[data-dia="1"]');
+        const ent = lunes.querySelector('.horaEntrada').value;
+        const sal = lunes.querySelector('.horaSalida').value;
+        if (!ent || !sal) {
+          Swal.showValidationMessage('Rellena primero el lunes.');
+          return;
+        }
+        let copiados = 0;
+        popup.querySelectorAll('tr[data-dia]').forEach(tr => {
+          if (tr.dataset.dia === '1') return;
+          if (!tr.querySelector('.chkDia').checked) return;
+          const e = tr.querySelector('.horaEntrada');
+          const sa = tr.querySelector('.horaSalida');
+          if (e.value || sa.value) return; // ya tiene algo puesto: no se toca
+          e.value = ent;
+          sa.value = sal;
+          copiados++;
+        });
+        if (copiados === 0) {
+          Swal.showValidationMessage('No hay días marcados y vacíos que rellenar.');
+        } else {
+          Swal.resetValidationMessage();
+        }
+      });
+    },
+    preConfirm: () => {
+      const dias = [];
+      const popup = Swal.getPopup();
+      for (const tr of popup.querySelectorAll('tr[data-dia]')) {
+        if (!tr.querySelector('.chkDia').checked) continue;
+        const entrada = tr.querySelector('.horaEntrada').value;
+        const salida = tr.querySelector('.horaSalida').value;
+        const nombreDia = tr.querySelector('span').textContent;
+        if (!entrada || !salida) {
+          Swal.showValidationMessage(`El ${nombreDia} necesita hora de entrada y de salida.`);
+          return false;
+        }
+        dias.push({
+          dia_semana: Number(tr.dataset.dia),
+          hora_entrada_esperada: entrada,
+          hora_salida_esperada: salida
+        });
+      }
+      return { dias };
+    }
+  });
+
+  if (!guardar) return;
+
+  try {
+    const res = await axios.put(`/api/admin/usuarios/${id}/horario`, guardar, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    await Swal.fire({
+      icon: 'success',
+      title: 'Horario guardado',
+      text: res.data.message,
+      timer: 1800,
+      showConfirmButton: false
+    });
+    await cargarUsuarios();
+  } catch (e) {
+    Swal.fire('Error', e.response?.data?.error || 'No se pudo guardar el horario', 'error');
   }
 }
 
@@ -1271,6 +1523,8 @@ if (btnGestionUsuarios) {
 });
 const chkSinTel = document.getElementById('chkSoloSinTelefono');
 if (chkSinTel) chkSinTel.addEventListener('change', pintarTablaUsuarios);
+const chkSinHor = document.getElementById('chkSoloSinHorario');
+if (chkSinHor) chkSinHor.addEventListener('change', pintarTablaUsuarios);
 const chkArch = document.getElementById('chkIncluirArchivados');
 if (chkArch) chkArch.addEventListener('change', cargarUsuarios);
 const btnRecargarUsuarios = document.getElementById('btnRecargarUsuarios');

@@ -22,6 +22,7 @@ const Autoevaluacion = require('../models/Autoevaluacion');
 require('../models/Area');
 const turnos = require('../utils/turnos');
 const { getLocalDate } = require('../utils/dateUtils');
+const horarios = require('./horarioService');
 
 /** Medianoche UTC del día indicado, que es como Asistencia guarda 'fecha'. */
 function medianocheDe(fecha) {
@@ -133,7 +134,10 @@ async function cargarDia(fechaHoy, incluirAdmins) {
   // reporte a propósito; se considera únicamente su hora de llegada inicial.
   const validas = asistencias.filter(a => porId.has(String(a.usuarioid)));
 
-  return { plantilla, porId, asistencias: validas };
+  // Horarios de quienes marcaron, para juzgar contra SU hora de entrada.
+  const mapaHorarios = await horarios.cargarHorarios(validas.map(a => a.usuarioid));
+
+  return { plantilla, porId, asistencias: validas, mapaHorarios };
 }
 
 // ==========================================================================
@@ -161,7 +165,7 @@ async function generarReporteCorte({ corteId, incluirAdmins = false, ahora: mome
     throw error;
   }
 
-  const { plantilla, porId, asistencias } = await cargarDia(fechaHoy, incluirAdmins);
+  const { plantilla, porId, asistencias, mapaHorarios } = await cargarDia(fechaHoy, incluirAdmins);
   const totalPlantilla = plantilla.length;
 
   // La asignación a la franja usa la MISMA función que la evaluación, para que
@@ -176,7 +180,10 @@ async function generarReporteCorte({ corteId, incluirAdmins = false, ahora: mome
 
   for (const a of deEsteCorte) {
     const u = porId.get(String(a.usuarioid));
-    const ev = turnos.evaluarEntrada(a.horaentrada);
+    const ev = turnos.evaluarEntrada(
+      a.horaentrada,
+      horarios.horaEsperada(mapaHorarios, a.usuarioid, fechaHoy)
+    );
     const ficha = {
       nombre: nombreCompleto(u),
       area: areaDe(u),
@@ -291,7 +298,7 @@ async function generarReporteDelDia({ incluirAdmins = false, ahora: momento } = 
   const ahora = momento ? new Date(momento) : getLocalDate();
   const fechaHoy = medianocheDe(ahora);
 
-  const { plantilla, porId, asistencias } = await cargarDia(fechaHoy, incluirAdmins);
+  const { plantilla, porId, asistencias, mapaHorarios } = await cargarDia(fechaHoy, incluirAdmins);
   const totalPlantilla = plantilla.length;
   const idsQueMarcaron = new Set(asistencias.map(a => String(a.usuarioid)));
 
@@ -300,7 +307,10 @@ async function generarReporteDelDia({ incluirAdmins = false, ahora: momento } = 
 
   for (const a of asistencias) {
     const u = porId.get(String(a.usuarioid));
-    const ev = turnos.evaluarEntrada(a.horaentrada);
+    const ev = turnos.evaluarEntrada(
+      a.horaentrada,
+      horarios.horaEsperada(mapaHorarios, a.usuarioid, fechaHoy)
+    );
     if (ev.esTardanza) {
       tardanzas.push({
         nombre: nombreCompleto(u),
@@ -424,6 +434,12 @@ async function generarReportePeriodo({ fechaInicio, fechaFin, incluirAdmins = fa
   const asistencias = await Asistencia.find(filtro).populate('usuarioid', 'nombre apellido');
   const validas = asistencias.filter(a => idsPlantilla.has(String(a.usuarioid?._id)));
 
+  // El periodo abarca varios días, así que cada asistencia se juzga contra el
+  // horario de SU día de la semana.
+  const mapaHorarios = await horarios.cargarHorarios(
+    [...new Set(validas.map(a => String(a.usuarioid?._id)))]
+  );
+
   let horasTotales = 0;
   let puntuales = 0;
   let sinCerrar = 0;
@@ -433,8 +449,11 @@ async function generarReportePeriodo({ fechaInicio, fechaFin, incluirAdmins = fa
     horasTotales += (a.horas_trabajadas || 0) / 3600;
     if (a.estado !== 'Jornada terminada') sinCerrar++;
 
-    const ev = turnos.evaluarEntrada(a.horaentrada);
     const clave = String(a.usuarioid?._id);
+    const ev = turnos.evaluarEntrada(
+      a.horaentrada,
+      horarios.horaEsperada(mapaHorarios, clave, a.fecha)
+    );
     if (!porPersona.has(clave)) {
       porPersona.set(clave, { nombre: nombreCompleto(a.usuarioid), tardanzas: 0, dias: 0 });
     }

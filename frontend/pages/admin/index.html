@@ -47,12 +47,15 @@
       <h2>Gestionar usuarios</h2>
       <p class="ayuda">
         Quienes se registraron antes del 10/08/2026 tienen el teléfono vacío por un
-        fallo del formulario. Desde aquí se rellenan sin tocar la base de datos.
+        fallo del formulario. Desde aquí se rellenan sin tocar la base de datos.<br>
+        El <strong>horario</strong> se guarda por día de la semana, para quien entra a
+        hora distinta según el día.
       </p>
       <div class="subfiltros">
         <input type="search" id="buscarUsuario" placeholder="Buscar usuario..." autocomplete="off">
         <label class="check"><input type="checkbox" id="chkSoloSinTelefono"> Solo sin teléfono <span id="contadorSinTelefono" class="pill-aviso">0</span></label>
-        <label class="check"><input type="checkbox" id="chkIncluirArchivados"> Incluir archivados</label>
+        <label class="check"><input type="checkbox" id="chkSoloSinHorario"> Solo sin horario <span id="contadorSinHorario" class="pill-aviso">0</span></label>
+        <label class="check"><input type="checkbox" id="chkIncluirArchivados"> Ver dados de baja</label>
         <button id="btnRecargarUsuarios" type="button" class="btn-sec">↻ Recargar</button>
       </div>
       <div class="tabla-scroll">
@@ -62,6 +65,7 @@
               <th>Nombre</th>
               <th>Correo</th>
               <th>Teléfono</th>
+              <th>Horario</th>
               <th>Área</th>
               <th>Rol</th>
               <th>Acciones</th>
