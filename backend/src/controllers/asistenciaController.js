@@ -57,6 +57,135 @@ function timeToSeconds(timeStr) {
   return (h || 0) * 3600 + (m || 0) * 60 + (s || 0);
 }
 
+// ========== QUE QUEDA ABIERTO Y DESDE CUANDO ==========
+// Todo lo relacionado con "esta jornada sigue abierta?" vive aqui, para que el
+// motor periodico y el cierre de la jornada del dia anterior no puedan
+// responder lo mismo de dos maneras distintas.
+
+/** Los tramos del dia, tolerando registros antiguos que no tienen el array. */
+function tramosDe(asistencia) {
+  return Array.isArray(asistencia.tramos) ? asistencia.tramos : [];
+}
+
+/** Suma de los tramos ya cerrados, en segundos. Es la unica medida real. */
+function sumarSegundosTramos(tramos) {
+  let total = 0;
+  for (const t of tramos) {
+    if (!t.horaentrada || !t.horasalida) continue;
+    const inicio = timeToSeconds(t.horaentrada);
+    let fin = timeToSeconds(t.horasalida);
+    if (fin < inicio) fin += 86400; // el tramo cruza la medianoche
+    total += fin - inicio;
+  }
+  return total;
+}
+
+/** Hora local reconstruida a partir de la fecha del registro. */
+function instanteLocal(fecha, hora) {
+  if (!fecha || !hora) return null;
+  return new Date(fecha.getTime() + timeToSeconds(hora) * 1000);
+}
+
+/**
+ * Que hay abierto en una jornada, o null si no hay nada.
+ *
+ * Antes esta pregunta se respondia mirando si `horasalida` estaba vacio, y ahi
+ * estaba la raiz del problema: `horasalida` no es una bandera de "sigue
+ * abierta", es un dato. Al pausar se rellena, asi que quien trabajaba en dos
+ * tramos quedaba marcado como cerrado para siempre y su segundo tramo no se
+ * cerraba nunca. La pregunta correcta es si queda algun TRAMO sin salida.
+ *
+ * Devuelve tambien desde cuando lleva abierto, en los dos relojes que maneja el
+ * proyecto (ver `horasAbierto`).
+ */
+function aperturaPendiente(asistencia) {
+  const tramos = tramosDe(asistencia);
+  const tramoAbierto = tramos.find(t => !t.horasalida);
+
+  if (tramoAbierto) {
+    const horaEntrada = tramoAbierto.horaentrada || asistencia.horaentrada;
+    return {
+      tramo: tramoAbierto,
+      horaEntrada,
+      inicioReal: tramoAbierto.created_at || null,
+      inicioLocal: instanteLocal(asistencia.fecha, horaEntrada)
+    };
+  }
+
+  // Registros del sistema anterior: no tienen array de tramos, asi que lo unico
+  // que se puede medir es la jornada entera desde su primera entrada.
+  if (tramos.length === 0 && !asistencia.horasalida) {
+    return {
+      tramo: null,
+      horaEntrada: asistencia.horaentrada,
+      inicioReal: asistencia.fecha_creacion || null,
+      inicioLocal: instanteLocal(asistencia.fecha, asistencia.horaentrada)
+    };
+  }
+
+  // Todos los tramos cerrados: la persona esta en pausa, no trabajando.
+  return null;
+}
+
+/**
+ * Horas que lleva abierta una apertura.
+ *
+ * OJO: EL PROYECTO MANEJA DOS RELOJES Y NO SE PUEDEN MEZCLAR.
+ *   - `created_at` y `fecha_creacion` son instantes reales (UTC).
+ *   - `fecha + horaentrada` es hora local de Lima, porque `fecha` se guarda
+ *     como medianoche UTC del dia LOCAL.
+ *
+ * `getLocalDate()` devuelve la hora local, no el instante real: en un servidor
+ * en UTC va 5 horas por detras del reloj de verdad. El motor restaba
+ * `fecha_creacion` (real) de `getLocalDate()` (local), asi que en produccion le
+ * salian 5 horas de menos y no cerraba a las 12 horas sino a las 17. En la
+ * maquina de desarrollo, que ya esta en hora de Lima, el desfase no aparece:
+ * el motor se comportaba distinto en local y en produccion.
+ *
+ * Cada ancla se compara con SU reloj.
+ */
+function horasAbierto(apertura, ahoraReal, ahoraLocal) {
+  if (apertura.inicioReal) {
+    return (ahoraReal.getTime() - apertura.inicioReal.getTime()) / 3600000;
+  }
+  if (apertura.inicioLocal) {
+    return (ahoraLocal.getTime() - apertura.inicioLocal.getTime()) / 3600000;
+  }
+  return null;
+}
+
+/**
+ * Cierra la apertura pendiente en su limite y recalcula las horas del dia.
+ *
+ * Las horas se SUMAN de los tramos en vez de asignar el limite como numero
+ * plano. Antes se hacia `horas_trabajadas = limite * 3600`, que borraba lo que
+ * la persona llevara acumulado: quien habia trabajado 5 horas y se dejo el
+ * segundo tramo abierto acababa con 12.
+ *
+ * El limite se calcula sobre la hora de entrada del TRAMO, no la del dia, asi
+ * que un segundo tramo que empieza a las 20:00 se corta a las 07:00 como
+ * cualquier turno de noche.
+ */
+function aplicarCierreAutomatico(asistencia, apertura) {
+  const limiteHoras = limiteHorasJornada(apertura.horaEntrada);
+  const horaSalidaGenerada = horaSalidaTrasLimite(apertura.horaEntrada, limiteHoras);
+
+  if (apertura.tramo) {
+    apertura.tramo.horasalida = horaSalidaGenerada;
+    asistencia.horas_trabajadas = sumarSegundosTramos(tramosDe(asistencia));
+  } else {
+    // Registro antiguo sin tramos: no hay nada que sumar y la estimacion del
+    // limite es la unica cifra disponible.
+    asistencia.horas_trabajadas = limiteHoras * 3600;
+  }
+
+  asistencia.horasalida = horaSalidaGenerada;
+  asistencia.estado = 'Jornada terminada';
+  asistencia.cierre_automatico = true;
+
+  return { limiteHoras, horaSalidaGenerada };
+}
+
 // ========== 🆕 VALIDACIÓN DE DIFERENCIA HORARIA (ELIMINADA - ya no hay restricción) ==========
 // La función ya no se usa - se ha eliminado la validación de 10 minutos
 // function validarDiferenciaHoraria(horaLocal) {
@@ -126,24 +255,29 @@ exports.marcarEntrada = async (req, res) => {
     }).sort({ fecha: -1 });
 
     if (jornadaAnterior) {
-      console.log(`🌙 Auto-cerrando jornada anterior del usuario ${usuarioid} (fecha: ${jornadaAnterior.fecha})`);
+      const diaAnterior = jornadaAnterior.fecha.toISOString().split('T')[0];
+      const apertura = aperturaPendiente(jornadaAnterior);
 
-      const limiteHoras = limiteHorasJornada(jornadaAnterior.horaentrada);
-      const horaSalidaGenerada = horaSalidaTrasLimite(jornadaAnterior.horaentrada, limiteHoras);
-      const segundosTrabajados = limiteHoras * 3600;
-
-      const tramoAbierto = jornadaAnterior.tramos.find(t => !t.horasalida);
-      if (tramoAbierto) {
-        tramoAbierto.horasalida = horaSalidaGenerada;
+      if (apertura && apertura.horaEntrada) {
+        const { limiteHoras, horaSalidaGenerada } = aplicarCierreAutomatico(jornadaAnterior, apertura);
+        console.log(
+          `Jornada anterior (${diaAnterior}) cerrada automaticamente: ` +
+          `${apertura.horaEntrada} -> ${horaSalidaGenerada}, limite ${limiteHoras}h`
+        );
+      } else {
+        // Se quedo en pausa y no volvio. Sus tramos estan todos cerrados, asi
+        // que sus horas YA son exactas y solo falta cerrar el estado.
+        //
+        // Antes se le asignaba el limite como numero plano igual que a las
+        // demas: quien habia trabajado 5 horas y se olvido de pulsar Terminar
+        // amanecia con 12. Tampoco se marca `cierre_automatico`, que significa
+        // "el sistema estimo estas horas": aqui no se ha estimado nada y
+        // marcarlo mandaria a revisar a mano un dato que esta bien.
+        jornadaAnterior.estado = 'Jornada terminada';
+        console.log(`Jornada anterior (${diaAnterior}) estaba en pausa: se cierra sin estimar horas`);
       }
 
-      jornadaAnterior.horasalida = horaSalidaGenerada;
-      jornadaAnterior.horas_trabajadas = segundosTrabajados;
-      jornadaAnterior.estado = 'Jornada terminada';
-      jornadaAnterior.cierre_automatico = true;
       await jornadaAnterior.save();
-
-      console.log(`✅ Jornada anterior cerrada automáticamente: ${horaSalidaGenerada} (${segundosTrabajados / 3600}h)`);
     }
 
     // PASO 1: Buscar si ya hay asistencia de HOY
@@ -183,23 +317,20 @@ exports.marcarEntrada = async (req, res) => {
     } else {
       asistencia.estado = 'En jornada';
 
-      // ⚠️ NO LIMPIAR `asistencia.horasalida` AQUÍ. Parece un descuido y no lo es.
+      // Al pausar se relleno `horasalida`. Al reanudar deja de ser cierto que
+      // la persona se haya ido, asi que se limpia.
       //
-      // Al pausar se rellena `horasalida`, y el motor de auto-cierre solo busca
-      // registros donde ese campo esté vacío. Mantenerlo relleno al reanudar es
-      // lo que impide que se cierre la jornada de quien trabaja en dos tramos
-      // separados por un hueco largo.
+      // Esto ANTES no se podia hacer, y el comentario que habia aqui explicaba
+      // por que: el motor de auto-cierre usaba `horasalida` como bandera de
+      // "jornada abierta" y media el tiempo desde la PRIMERA entrada del dia.
+      // Limpiarlo devolvia el registro al radar del motor, que cerraba la
+      // jornada de quien trabaja en dos tramos mientras seguia trabajando
+      // (Christian Medina, 09:00-23:00, se cerraba a las 21:00).
       //
-      // Comprobado con los horarios reales: incluso con el límite en 12 horas,
-      // limpiarlo cerraría a Christian Medina (09:00–23:00) a las 21:00 y a
-      // Miguel Fernando (08:00–21:00) a las 20:00, MIENTRAS SIGUEN TRABAJANDO.
-      //
-      // El arreglo correcto no es limpiar el campo: es que el auto-cierre mida
-      // cuánto lleva abierto el TRAMO ACTUAL en vez de cuánto lleva abierto el
-      // día desde la primera entrada. Hasta que eso se haga, esto se queda.
-      //
-      // Efecto secundario conocido: el panel muestra "Completado" a quien está
-      // en su segundo tramo, porque deduce el estado de `horasalida`.
+      // El motor ya no mira este campo: busca si queda algun TRAMO sin salida y
+      // mide el tramo actual, no el dia. `horasalida` ya no gobierna nada, asi
+      // que puede limitarse a decir la verdad.
+      asistencia.horasalida = null;
     }
 
     const tramoAbierto = asistencia.tramos.find(t => !t.horasalida);
@@ -291,15 +422,9 @@ exports.marcarSalida = async (req, res) => {
     asistencia.tramos[tramoIndex].horasalida = horaLocal;
     asistencia.horasalida = horaLocal;
 
-    let segundosTotales = 0;
-    asistencia.tramos.forEach(t => {
-      if (t.horaentrada && t.horasalida) {
-        const start = timeToSeconds(t.horaentrada);
-        let end = timeToSeconds(t.horasalida);
-        if (end < start) end += 86400;
-        segundosTotales += (end - start);
-      }
-    });
+    // Misma suma que usa el cierre automatico, para que una jornada cerrada a
+    // mano y otra cerrada por el sistema no puedan dar cifras distintas.
+    const segundosTotales = sumarSegundosTramos(tramosDe(asistencia));
 
     asistencia.horas_trabajadas = segundosTotales;
 
@@ -369,62 +494,70 @@ exports.obtenerEstadoActual = async (req, res) => {
 };
 
 // ==========================================
-// MOTOR DE AUTO-CIERRE: CRON JOB SIMULADO
+// MOTOR DE AUTO-CIERRE
 // ==========================================
+
+const INTERVALO_AUTOCIERRE_MS = 30 * 60 * 1000;
+
+/**
+ * Cierra las jornadas que ya superaron su limite.
+ *
+ * Esta separada del temporizador a proposito: con el cierre metido dentro de
+ * un setInterval de 30 minutos no habia forma de probar el motor sin esperar
+ * media hora. Ahora se puede invocar a mano.
+ *
+ * @returns {number} cuantas jornadas se cerraron
+ */
+exports.procesarCierresAutomaticos = async () => {
+  const ahoraReal = new Date();
+  const ahoraLocal = getLocalDate();
+
+  // La consulta ya NO filtra por `horasalida`. Ese campo se rellena al pausar,
+  // asi que dejaba fuera a todo el que trabajara en dos tramos: su segundo
+  // tramo no se cerraba nunca. Ahora se traen todas las jornadas no terminadas
+  // y es `aperturaPendiente` quien decide si queda algo abierto.
+  const jornadas = await Asistencia.find({
+    estado: { $nin: ['Jornada terminada', 'Ausente', 'Licencia'] },
+    horaentrada: { $ne: null }
+  });
+
+  let cerradas = 0;
+
+  for (const asistencia of jornadas) {
+    const apertura = aperturaPendiente(asistencia);
+
+    // Sin tramo abierto no hay nada que cerrar. Es el caso de quien esta en su
+    // pausa de mediodia: cerrarle la jornada le impediria reanudarla.
+    if (!apertura || !apertura.horaEntrada) continue;
+
+    const horas = horasAbierto(apertura, ahoraReal, ahoraLocal);
+    if (horas === null) continue;
+
+    const limiteHoras = limiteHorasJornada(apertura.horaEntrada);
+    if (horas < limiteHoras) continue;
+
+    const horaTramo = parseInt(String(apertura.horaEntrada).split(':')[0], 10) || 0;
+    const esNocturno = horaTramo >= HORA_INICIO_NOCTURNO;
+
+    const { horaSalidaGenerada } = aplicarCierreAutomatico(asistencia, apertura);
+    await asistencia.save();
+    cerradas++;
+
+    console.log(
+      `Auto-cierre -> usuario ${asistencia.usuarioid} | tramo ${apertura.horaEntrada} -> ` +
+      `${horaSalidaGenerada} | limite ${limiteHoras}h ${esNocturno ? '(NOCTURNO)' : '(DIURNO)'}`
+    );
+  }
+
+  return cerradas;
+};
+
 exports.iniciarAutoCierre = () => {
   setInterval(async () => {
     try {
-      const ahora = getLocalDate();
-
-      const asistenciasAbiertas = await Asistencia.find({
-        estado: { $nin: ['Jornada terminada', 'Ausente', 'Licencia'] },
-        horaentrada: { $ne: null },
-        $or: [
-          { horasalida: null },
-          { horasalida: { $exists: false } }
-        ]
-      });
-
-      for (const asistencia of asistenciasAbiertas) {
-        // Los registros migrados del sistema anterior no tienen fecha_creacion.
-        // Antes se saltaban con `continue`, así que nunca se cerraban y quedaban
-        // abiertos para siempre. Ahora reconstruimos el inicio desde fecha + horaentrada.
-        let inicioJornada = asistencia.fecha_creacion;
-
-        if (!inicioJornada) {
-          if (!asistencia.fecha || !asistencia.horaentrada) continue;
-          inicioJornada = new Date(asistencia.fecha.getTime() + timeToSeconds(asistencia.horaentrada) * 1000);
-        }
-
-        const tiempoTranscurridoMs = ahora.getTime() - inicioJornada.getTime();
-        const horasTranscurridas = tiempoTranscurridoMs / (3600 * 1000);
-
-        const horaEntradaNum = parseInt(asistencia.horaentrada.split(':')[0], 10);
-        const esNocturno = horaEntradaNum >= HORA_INICIO_NOCTURNO;
-        const limiteHoras = limiteHorasJornada(asistencia.horaentrada);
-
-        if (horasTranscurridas >= limiteHoras) {
-          console.log(`⏱️ Auto-cerrando jornada → Usuario: ${asistencia.usuarioid} | Entrada: ${asistencia.horaentrada} | Límite: ${limiteHoras}h ${esNocturno ? '(NOCTURNO)' : '(DIURNO)'}`);
-
-          const horaSalidaGenerada = horaSalidaTrasLimite(asistencia.horaentrada, limiteHoras);
-
-          const tramoAbierto = asistencia.tramos.find(t => !t.horasalida);
-          if (tramoAbierto) {
-            tramoAbierto.horasalida = horaSalidaGenerada;
-          }
-
-          asistencia.horasalida = horaSalidaGenerada;
-          asistencia.horas_trabajadas = limiteHoras * 3600;
-          asistencia.estado = 'Jornada terminada';
-          asistencia.cierre_automatico = true;
-
-          await asistencia.save();
-          console.log(`✅ Jornada cerrada: ${asistencia.horaentrada} → ${horaSalidaGenerada} (${limiteHoras}h)`);
-        }
-      }
+      await exports.procesarCierresAutomaticos();
     } catch (error) {
       console.error('Error en iniciarAutoCierre:', error);
     }
-
-  }, 1800000);
+  }, INTERVALO_AUTOCIERRE_MS);
 };
