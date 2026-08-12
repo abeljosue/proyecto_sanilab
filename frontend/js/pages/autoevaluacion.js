@@ -56,13 +56,20 @@ window.onload = async function () {
     const estado = estadoRes.data;
 
     if (!estado.permitido) {
+      // Cumplir el cupo de la semana no es un bloqueo, es haber terminado: se
+      // avisa en verde y no con el candado de 'módulo bloqueado'.
+      const cumplioLaSemana = estado.tipo === 'cupo_semanal';
+      const hechas = estado.completadasSemana ?? 0;
+      const objetivo = estado.objetivoSemanal ?? 2;
+
       await Swal.fire({
-        icon: 'warning',
-        title: '🔒 Módulo Bloqueado',
+        icon: cumplioLaSemana ? 'success' : 'info',
+        title: cumplioLaSemana ? '✅ Ya completaste tu semana' : '📋 Todavía no toca',
         html: `
           <p style="font-size:16px;">${estado.razon}</p>
           <hr style="margin:15px 0;">
-          <p style="font-size:14px; color:#888;">📅 Tu próxima autoevaluación es el <strong style="color:#e65100;">${estado.proximoDia} (${estado.proximaFecha})</strong></p>
+          <p style="font-size:15px;">Llevas <strong>${hechas} de ${objetivo}</strong> autoevaluaciones de esta semana.</p>
+          ${estado.proximoDia ? `<p style="font-size:14px; color:#888;">📅 Puedes volver el <strong style="color:#e65100;">${estado.proximoDia} (${estado.proximaFecha})</strong></p>` : ''}
         `,
         confirmButtonText: 'Entendido, volver al inicio',
         confirmButtonColor: '#4CAF50',
@@ -394,9 +401,10 @@ async function enviarRespuestas() {
   const usuarioid = localStorage.getItem('usuarioid');
   const areaid = localStorage.getItem('areaid');
   const token = localStorage.getItem('token');
-  // Quincena dinámica: formato YYYY-MM para acumulación mensual
-  const hoy = new Date();
-  const quincena = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+  // El periodo ('quincena', que en realidad guarda el mes) lo calcula el
+  // servidor con su propio reloj. Antes se mandaba desde aquí y el backend lo
+  // descartaba: dos fuentes para el mismo dato, y la del navegador dependía de
+  // la hora del móvil de cada persona.
 
 
   let suma = 0;
@@ -438,7 +446,6 @@ async function enviarRespuestas() {
       usuarioid: usuarioid,
       areaid: areaid,
       puntajetotal: puntajetotal,
-      quincena: quincena,
       mensajemotivacional: mensajeMotivacional,
       respuestas: respuestasArray
     }, {

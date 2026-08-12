@@ -23,29 +23,24 @@ require('../models/Area');
 const turnos = require('../utils/turnos');
 const { getLocalDate } = require('../utils/dateUtils');
 const horarios = require('./horarioService');
+const periodos = require('../utils/periodos');
+const cadencia = require('../utils/autoevaluaciones');
 
 /** Medianoche UTC del día indicado, que es como Asistencia guarda 'fecha'. */
 function medianocheDe(fecha) {
   return new Date(Date.UTC(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()));
 }
 
-/** Rango local completo del día indicado. */
-function rangoDelDia(fecha) {
-  const inicio = new Date(fecha); inicio.setHours(0, 0, 0, 0);
-  const fin = new Date(fecha); fin.setHours(23, 59, 59, 999);
-  return { inicio, fin };
-}
+// rangoDelDia() se elimino: era solo para contar autoevaluaciones del dia, y
+// el cupo paso a ser semanal. El rango de la semana sale de utils/periodos.
 
 // Cuántos nombres se listan antes de resumir con "y N más". Mantiene el mensaje
 // legible en un móvil cuando la plantilla crece.
 const MAX_NOMBRES = 12;
 
-// Días en que el sistema permite autoevaluarse. Refleja DIAS_PERMITIDOS de
-// autoevaluacionController: si allí cambia, hay que cambiarlo aquí.
-// Importa porque los días laborables (lunes a sábado) NO coinciden con estos:
-// el sábado se espera asistencia pero la autoevaluación está bloqueada, y sin
-// esta comprobación el reporte listaría a toda la plantilla como incumplidora.
-const DIAS_AUTOEVALUACION = [1, 2, 3, 4, 5];
+// Los días y el cupo de la autoevaluación ya NO se declaran aquí. Estaban
+// duplicados con el controlador y había que acordarse de cambiar los dos.
+// Ahora salen de utils/autoevaluaciones, que es lo que aplica la app.
 
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
@@ -334,17 +329,31 @@ async function generarReporteDelDia({ incluirAdmins = false, ahora: momento } = 
   const estadoSinMarcar = turnos.estadoSinMarcar(ahora, ahora);
   const esLaborable = turnos.esDiaLaborable(ahora);
 
-  // Autoevaluación del día.
-  // NOTA: si la autoevaluación pasa a ser semanal, cambiar rangoDelDia por el
-  // rango de la semana y revisar DIAS_AUTOEVALUACION.
-  const autoevaluacionHabilitadaHoy = DIAS_AUTOEVALUACION.includes(ahora.getDay());
-  const { inicio, fin } = rangoDelDia(ahora);
+  // Autoevaluación: el cupo es SEMANAL (2 por semana), no una al día.
+  //
+  // Antes se listaba a quien no se había autoevaluado HOY. Con el cupo nuevo
+  // eso sería reclamárselo cada día a casi toda la plantilla, incluida la
+  // gente que ya cumplió: el bloque se volvería ruido y se dejaría de leer.
+  const semana = periodos.rangoSemana(ahora);
+  const objetivoSemanal = cadencia.VECES_POR_SEMANA;
+
   const autoevaluaciones = await Autoevaluacion.find({
-    fechaevaluacion: { $gte: inicio, $lte: fin },
+    fechaevaluacion: { $gte: semana.inicio, $lte: semana.fin },
     completada: 'SI'
   }).select('usuarioid');
-  const idsEvaluaron = new Set(autoevaluaciones.map(a => String(a.usuarioid)));
-  const sinAutoevaluar = plantilla.filter(u => !idsEvaluaron.has(String(u._id)));
+
+  const hechasPorUsuario = new Map();
+  for (const a of autoevaluaciones) {
+    const clave = String(a.usuarioid);
+    hechasPorUsuario.set(clave, (hechasPorUsuario.get(clave) || 0) + 1);
+  }
+
+  // Se guarda cuántas lleva cada uno, no solo si cumplió: para perseguir a
+  // alguien es muy distinto que le falte una o que no haya hecho ninguna.
+  const sinAutoevaluar = plantilla
+    .map(u => ({ usuario: u, hechas: hechasPorUsuario.get(String(u._id)) || 0 }))
+    .filter(x => x.hechas < objetivoSemanal);
+
   const totalEvaluaron = totalPlantilla - sinAutoevaluar.length;
 
   // ---------- Construcción del texto ----------
@@ -382,18 +391,16 @@ async function generarReporteDelDia({ incluirAdmins = false, ahora: momento } = 
   }
 
   l.push('');
-  if (!autoevaluacionHabilitadaHoy) {
-    // No se puede reclamar lo que el sistema no deja hacer.
-    l.push('📝 *AUTOEVALUACIÓN*');
-    l.push('_Hoy no está habilitada (solo de lunes a viernes)._');
-  } else {
-    l.push(`📝 *AUTOEVALUACIÓN* — ${totalEvaluaron} de ${totalPlantilla}`);
-    if (sinAutoevaluar.length > 0) {
-      l.push(`Faltan ${sinAutoevaluar.length}:`);
-      listar(sinAutoevaluar.map(u => `• ${nombreCompleto(u)}`)).forEach(x => l.push(x));
-    } else if (totalPlantilla > 0) {
-      l.push('✅ Todos al día');
-    }
+  l.push(`📝 *AUTOEVALUACIÓN DE LA SEMANA* — ${totalEvaluaron} de ${totalPlantilla}`);
+  l.push(`_${fechaCorta(semana.inicio)} al ${fechaCorta(semana.fin)} · ${objetivoSemanal} por persona_`);
+
+  if (sinAutoevaluar.length > 0) {
+    l.push(`Faltan ${sinAutoevaluar.length}:`);
+    listar(
+      sinAutoevaluar.map(x => `• ${nombreCompleto(x.usuario)} _(${x.hechas} de ${objetivoSemanal})_`)
+    ).forEach(x => l.push(x));
+  } else if (totalPlantilla > 0) {
+    l.push('✅ Todos al día');
   }
 
   return {
@@ -407,8 +414,12 @@ async function generarReporteDelDia({ incluirAdmins = false, ahora: momento } = 
       sinMarcar: sinMarcar.length,
       estadoSinMarcar,
       esDiaLaborable: esLaborable,
-      autoevaluacionHabilitadaHoy,
-      autoevaluaronHoy: totalEvaluaron
+      // La autoevaluación se mide por semana, no por día: el nombre del campo
+      // lo dice para que nadie lo lea como "hoy".
+      semanaAutoevaluacion: `${fechaCorta(semana.inicio)}–${fechaCorta(semana.fin)}`,
+      objetivoSemanal,
+      autoevaluacionAlDiaSemana: totalEvaluaron,
+      sinCompletarAutoevaluacion: sinAutoevaluar.length
     }
   };
 }

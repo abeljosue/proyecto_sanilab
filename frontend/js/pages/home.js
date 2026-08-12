@@ -93,17 +93,26 @@ async function verificarRecordatorioAutoeval() {
 
     if (estado.permitido) {
       localStorage.setItem(claveVisto, '1');
+
+      // El cupo es SEMANAL (2 por semana), no diario: el aviso ya no puede
+      // decir 'hoy toca' ni 'antes de que termine el día', porque la persona
+      // puede hacerla cualquier día de lunes a sábado.
+      const hechas = estado.completadasSemana ?? 0;
+      const objetivo = estado.objetivoSemanal ?? 2;
+      const faltan = estado.restantesSemana ?? objetivo;
+
       await Swal.fire({
-        icon: 'warning',
-        title: '📋 ¡Hoy toca Autoevaluación!',
+        icon: 'info',
+        title: '📋 Te falta tu autoevaluación',
         html: `
           <div style="text-align:center;">
             <p style="font-size:17px; margin-bottom:12px;">
-              Tienes una <strong>autoevaluación pendiente</strong> para hoy.
+              Llevas <strong>${hechas} de ${objetivo}</strong> autoevaluaciones de esta semana.
             </p>
             <p style="font-size:14px; color:#666;">
-              Recuerda completarla antes de que termine el día.<br>
-              ¡Tu puntaje se reflejará en el ranking mensual! 🏆
+              Te ${faltan === 1 ? 'queda 1' : `quedan ${faltan}`} por hacer antes del domingo.<br>
+              Puedes hacerla cualquier día de lunes a sábado, una por día.<br>
+              ¡Tu puntaje se refleja en el ranking mensual! 🏆
             </p>
           </div>
         `,
@@ -181,17 +190,41 @@ async function configurarBotonResultados() {
     const desc = btnResultados.querySelector('.button-description');
 
     if (!estado.permitido) {
-      if (desc) {
-        desc.textContent = (estado.tipo === 'ya_giro')
-          ? 'Premio ya reclamado'
-          : 'Disponible solo los Sábados';
-      }
+      // La ruleta pasó a ser MENSUAL: se abre en los últimos días del mes para
+      // los 3 primeros del ranking. Antes aquí ponía 'Disponible solo los
+      // Sábados', que además era falso: el servidor solo aceptaba giros los
+      // miércoles por un error de días.
+      const porTipo = {
+        ya_giro: {
+          desc: 'Premio ya reclamado',
+          icon: 'success',
+          titulo: '🎉 ¡Ya participaste este mes!'
+        },
+        cupo_agotado: {
+          desc: 'Premios del mes agotados',
+          icon: 'info',
+          titulo: '🎁 Los premios de este mes ya se entregaron'
+        },
+        ventana_cerrada: {
+          desc: `Se abre a fin de mes`,
+          icon: 'info',
+          titulo: '📅 Todavía no se abre la ruleta'
+        }
+      };
+      const info = porTipo[estado.tipo] || porTipo.ventana_cerrada;
+
+      if (desc) desc.textContent = info.desc;
+
       btnResultados.onclick = function (e) {
         e.preventDefault();
         Swal.fire({
-          icon: (estado.tipo === 'ya_giro') ? 'success' : 'info',
-          title: (estado.tipo === 'ya_giro') ? '🎉 ¡Ya participaste!' : '📅 Aún no es el día',
-          html: `<p style="font-size:16px;">${estado.razon}</p>`,
+          icon: info.icon,
+          title: info.titulo,
+          html: `
+            <p style="font-size:16px;">${estado.razon}</p>
+            <hr style="margin:15px 0;">
+            <p style="font-size:13px; color:#888;">La ruleta se abre <strong>${estado.ventana?.etiqueta || 'a fin de mes'}</strong> para los ${estado.puestosConPremio || 3} primeros del ranking.</p>
+          `,
           confirmButtonText: 'Entendido',
           confirmButtonColor: '#4CAF50'
         });
@@ -230,25 +263,41 @@ async function marcarProgresoHome() {
       });
       const estado = res.data;
 
+      const desc = cardAuto.querySelector('.button-description');
+      const hechas = estado.completadasSemana ?? 0;
+      const objetivo = estado.objetivoSemanal ?? 2;
+
       if (estado.permitido) {
+        // Se enseña el avance de la semana en vez de un texto fijo: con dos
+        // por semana, saber si vas por la primera o la segunda es lo útil.
+        if (desc) desc.textContent = `Llevas ${hechas} de ${objetivo} esta semana`;
         cardAuto.onclick = function () {
           window.location.href = '/pages/autoevaluacion/index.html';
         };
       } else {
         cardAuto.classList.add('nav-button--completed');
-        const desc = cardAuto.querySelector('.button-description');
+
+        // Solo se marca como 'cumplido' cuando de verdad completó el cupo. Si
+        // está bloqueada por ser domingo o por haberla hecho hoy, todavía le
+        // queda trabajo esta semana y no conviene decirle que terminó.
+        const cumplioLaSemana = estado.tipo === 'cupo_semanal';
+
         if (desc) {
-          desc.textContent = `Próxima: ${estado.proximoDia} ${estado.proximaFecha}`;
+          desc.textContent = cumplioLaSemana
+            ? `Completado: ${hechas} de ${objetivo} esta semana`
+            : `${hechas} de ${objetivo} · vuelve el ${estado.proximoDia}`;
         }
+
         cardAuto.onclick = function (e) {
           e.preventDefault();
           Swal.fire({
-            icon: 'info',
-            title: '📋 Autoevaluación',
+            icon: cumplioLaSemana ? 'success' : 'info',
+            title: cumplioLaSemana ? '✅ Semana completada' : '📋 Autoevaluación',
             html: `
               <p style="font-size:16px;">${estado.razon}</p>
               <hr style="margin:15px 0;">
-              <p style="font-size:14px; color:#888;">📅 Próxima fecha: <strong style="color:#e65100;">${estado.proximoDia} (${estado.proximaFecha})</strong></p>
+              <p style="font-size:15px;">Llevas <strong>${hechas} de ${objetivo}</strong> esta semana.</p>
+              ${estado.proximoDia ? `<p style="font-size:14px; color:#888;">📅 Puedes volver el <strong style="color:#e65100;">${estado.proximoDia} (${estado.proximaFecha})</strong></p>` : ''}
             `,
             confirmButtonText: 'Entendido',
             confirmButtonColor: '#4CAF50'
