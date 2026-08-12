@@ -10,6 +10,9 @@ const { getFechaHoyMidnight, getRangoHoy, getLocalDate } = require('../utils/dat
 const turnos = require('../utils/turnos');
 const reporteTexto = require('../services/reporteTextoService');
 const horarios = require('../services/horarioService');
+const periodos = require('../utils/periodos');
+const cadencia = require('../utils/autoevaluaciones');
+const rankingService = require('../services/rankingService');
 
 // Neutraliza los caracteres con significado especial en una expresión regular,
 // para que el texto que escribe el administrador se busque de forma literal.
@@ -105,35 +108,138 @@ exports.getHoras = async (req, res) => {
 };
 
 // ========== EXISTENTE: OBTENER PUNTAJES ==========
-exports.getPuntajes = async (req, res) => {
+/**
+ * Estado de la autoevaluacion de toda la plantilla en un MES concreto.
+ *
+ * Sustituye a dos vistas que se contradecian entre si:
+ *
+ *  - `getPuntajes` listaba las filas de ranking de TODOS los meses mezclados y
+ *    ordenadas por puntaje, asi que agosto salia entre dos filas de julio. Y
+ *    mostraba la `posicion` GUARDADA, que es una foto del ultimo recalculo:
+ *    si entre medias cambiaba algo, el panel enseñaba puestos falsos. Se vio
+ *    en produccion con un puesto 2 sin puesto 1 delante.
+ *
+ *  - `getFaltantesAutoevaluacionHoy` contaba quien no se habia autoevaluado
+ *    HOY. Con el cupo de dos por semana eso ya no significa nada: listaba a
+ *    casi toda la plantilla a diario, incluida la gente que ya habia cumplido.
+ *
+ * Aqui se recalcula el mes pedido antes de leerlo, asi que los puestos son
+ * siempre los de verdad y quien esta archivado deja de dejar huecos en la
+ * numeracion. Es dato derivado: recalcular no destruye nada.
+ */
+exports.getResumenAutoevaluaciones = async (req, res) => {
   try {
-    const { nombre } = req.query;
-    let filter = {};
+    const { mes, incluirAdmins, mostrarArchivados } = req.query;
 
-    if (nombre) {
-      const usuarios = await buscarUsuariosPorNombre(nombre);
-      filter.usuarioid = { $in: usuarios.map(u => u._id) };
+    const clave = rankingService.esClaveValida(mes) ? mes : periodos.claveMes();
+    const esMesActual = clave === periodos.claveMes();
+
+    await rankingService.recalcularPeriodo(clave);
+
+    // ── Plantilla evaluada ──
+    const filtro = { activo: { $ne: 'NO' } };
+    if (incluirAdmins !== 'true') filtro.rol = 'USER';
+    filtro.archivado = mostrarArchivados === 'true' ? true : { $ne: true };
+
+    const plantilla = await Usuario.find(filtro)
+      .select('nombre apellido correo telefono areaid archivado')
+      .populate('areaid', 'nombre');
+
+    // ── Cuantas hizo cada uno en el mes ──
+    const delMes = await Autoevaluacion.find({ quincena: clave, completada: 'SI' })
+      .select('usuarioid');
+
+    const hechasEnElMes = new Map();
+    for (const a of delMes) {
+      const k = String(a.usuarioid);
+      hechasEnElMes.set(k, (hechasEnElMes.get(k) || 0) + 1);
     }
 
-    const rankings = await RankingQuincenal.find(filter)
-      .populate({
-        path: 'usuarioid',
-        select: 'nombre archivado',
-        match: { archivado: { $ne: true } }
-      })
-      .sort({ puntajetotal: -1 });
+    // ── Cuantas lleva cada uno en la SEMANA en curso ──
+    //
+    // Solo tiene sentido si se esta mirando el mes actual, y se consulta por
+    // rango de fecha y no por `quincena`: una semana puede cruzar el cambio de
+    // mes (el lunes en agosto y el jueves ya en septiembre).
+    const hechasEstaSemana = new Map();
+    let semana = null;
 
-    const rows = rankings
-      .filter(r => r.usuarioid !== null)
-      .map(r => ({
-        nombre: r.usuarioid.nombre,
-        quincena: r.quincena,
-        puntajetotal: r.puntajetotal,
-        posicion: r.posicion
-      }));
+    if (esMesActual) {
+      const rango = periodos.rangoSemana(getLocalDate());
+      semana = {
+        desde: rango.inicio,
+        hasta: rango.fin,
+        objetivo: cadencia.VECES_POR_SEMANA
+      };
 
-    res.json(rows);
+      const deLaSemana = await Autoevaluacion.find({
+        completada: 'SI',
+        fechaevaluacion: { $gte: rango.inicio, $lte: rango.fin }
+      }).select('usuarioid');
+
+      for (const a of deLaSemana) {
+        const k = String(a.usuarioid);
+        hechasEstaSemana.set(k, (hechasEstaSemana.get(k) || 0) + 1);
+      }
+    }
+
+    // ── Ranking ya recalculado del mes ──
+    const filasRanking = await RankingQuincenal.find({ quincena: clave })
+      .select('usuarioid posicion puntajetotal tieneruleta');
+
+    const porUsuario = new Map(filasRanking.map(r => [String(r.usuarioid), r]));
+
+    const filas = plantilla.map(u => {
+      const k = String(u._id);
+      const r = porUsuario.get(k);
+
+      return {
+        id: u._id,
+        nombre: u.nombre,
+        apellido: u.apellido || '',
+        correo: u.correo,
+        telefono: u.telefono || null,
+        area: u.areaid ? u.areaid.nombre : '—',
+        archivado: !!u.archivado,
+        hechasEnElMes: hechasEnElMes.get(k) || 0,
+        puntajeMes: r ? r.puntajetotal : 0,
+        posicion: r ? r.posicion : null,
+        tieneruleta: r ? !!r.tieneruleta : false,
+        hechasEstaSemana: esMesActual ? (hechasEstaSemana.get(k) || 0) : null
+      };
+    });
+
+    // Primero los que tienen puesto, en orden; despues quienes no hicieron
+    // ninguna, alfabeticamente, que son justo los que hay que perseguir.
+    filas.sort((a, b) => {
+      if (a.posicion && b.posicion) return a.posicion - b.posicion;
+      if (a.posicion) return -1;
+      if (b.posicion) return 1;
+      return a.nombre.localeCompare(b.nombre);
+    });
+
+    const conAlguna = filas.filter(f => f.hechasEnElMes > 0).length;
+    const alDiaSemana = esMesActual
+      ? filas.filter(f => f.hechasEstaSemana >= cadencia.VECES_POR_SEMANA).length
+      : null;
+
+    res.json({
+      ok: true,
+      mes: clave,
+      etiquetaMes: periodos.etiquetaMes(clave),
+      esMesActual,
+      mesesDisponibles: await rankingService.periodosConDatos(),
+      cadencia: cadencia.describirCadencia(),
+      semana,
+      resumen: {
+        total: filas.length,
+        conAlguna,
+        sinNinguna: filas.length - conAlguna,
+        alDiaSemana
+      },
+      filas
+    });
   } catch (err) {
+    console.error('Error en getResumenAutoevaluaciones:', err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -501,61 +607,9 @@ exports.getFaltantesHoy = async (req, res) => {
   }
 };
 
-// ========== EXISTENTE: FALTANTES AUTOEVALUACIÓN ==========
-exports.getFaltantesAutoevaluacionHoy = async (req, res) => {
-  try {
-    // Autoevaluacion.fechaevaluacion guarda un instante concreto (getLocalDate),
-    // no una medianoche, por eso aquí se filtra por rango y no por igualdad.
-    // La diferencia con getFaltantesHoy es intencional: cada colección guarda
-    // la fecha de forma distinta. No unificar sin migrar los datos primero.
-    const { inicio, fin } = getRangoHoy();
-    const { mostrarArchivados, incluirAdmins } = req.query;
-
-    const autoevaluacionesHoy = await Autoevaluacion.find({
-      fechaevaluacion: { $gte: inicio, $lte: fin },
-      completada: 'SI'
-    });
-
-    const idsQueEvaluaron = autoevaluacionesHoy.map(a => a.usuarioid.toString());
-
-    let filter = {
-      _id: { $nin: idsQueEvaluaron },
-      activo: { $ne: 'NO' }
-    };
-
-    if (incluirAdmins !== 'true') {
-      filter.rol = 'USER';
-    }
-
-    if (mostrarArchivados === 'true') {
-      filter.archivado = true;
-    } else {
-      filter.archivado = { $ne: true };
-    }
-
-    const queryFaltante = await Usuario.find(filter).populate('areaid', 'nombre');
-
-    const faltantes = queryFaltante.map(u => ({
-      id: u._id,
-      nombre: u.nombre,
-      apellido: u.apellido,
-      correo: u.correo,
-      telefono: u.telefono || null,
-      area: u.areaid ? u.areaid.nombre : '_',
-      archivado: u.archivado || false
-    }));
-
-    res.json({
-      ok: true,
-      faltantes: faltantes,
-      total: faltantes.length,
-      fecha: inicio.toISOString().split('T')[0]
-    });
-  } catch (error) {
-    console.error('Error al obtener faltantes autoevaluación:', error);
-    res.status(500).json({ error: error.message });
-  }
-};
+// getFaltantesAutoevaluacionHoy() se elimino: contaba quien no se habia
+// autoevaluado HOY, y el cupo paso a ser de dos por semana. Lo sustituye
+// getResumenAutoevaluaciones, que mide el mes y la semana.
 
 // ========== EXISTENTE: EDITAR HORAS ==========
 exports.updateHoras = async (req, res) => {

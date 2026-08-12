@@ -6,11 +6,12 @@ const { verifyToken, verifyAdmin, verifyCanEdit } = require('../middlewares/auth
 // ========== EXISTENTES ==========
 router.get('/horas', verifyToken, verifyAdmin, adminController.getHoras);
 router.put('/horas/:id', verifyToken, verifyAdmin, verifyCanEdit, adminController.updateHoras);
-router.get('/puntajes', verifyToken, verifyAdmin, adminController.getPuntajes);
+// Vista unica de autoevaluacion por mes. Recalcula el ranking del mes pedido
+// antes de responder, por eso exige verifyAdmin igual que las demas.
+router.get('/autoevaluaciones', verifyToken, verifyAdmin, adminController.getResumenAutoevaluaciones);
 router.post('/export-horas-sheets', verifyToken, verifyAdmin, adminController.exportHorasSheets);
 
 router.get('/faltantes-hoy', verifyToken, verifyAdmin, adminController.getFaltantesHoy);
-router.get('/faltantes-autoevaluacion-hoy', verifyToken, verifyAdmin, adminController.getFaltantesAutoevaluacionHoy);
 
 // Dar de baja / reincorporar. Lleva verifyCanEdit porque la cuenta de gerencia
 // es de solo lectura y hasta ahora podia dar de baja a cualquiera.

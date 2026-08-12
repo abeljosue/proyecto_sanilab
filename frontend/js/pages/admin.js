@@ -33,12 +33,12 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   const btnFiltrarHoras = document.getElementById('btnFiltrarHoras');
-  const btnFiltrarPuntajes = document.getElementById('btnFiltrarPuntajes');
   const btnExportarSheets = document.getElementById('btnExportarSheets');
 
   if (btnFiltrarHoras) btnFiltrarHoras.onclick = cargarHoras;
-  if (btnFiltrarPuntajes) btnFiltrarPuntajes.onclick = cargarPuntajes;
   if (btnExportarSheets) btnExportarSheets.onclick = exportarAGoogleSheets;
+
+  prepararFiltrosAutoevaluacion();
 
   // La tabla arranca mostrando SOLO el día de hoy. Antes, sin fechas, el
   // servidor devolvía hoy + ayer mezclados y costaba ver quién había marcado.
@@ -72,8 +72,22 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   cargarHoras();
-  cargarPuntajes();
+  cargarAutoevaluaciones();
 });
+
+/**
+ * Texto comparable: sin tildes y en minusculas.
+ *
+ * El buscador tiene que encontrar "Huamani" escribiendo "huamani", porque
+ * nadie teclea las tildes al buscar. Mismo criterio que el buscador de
+ * trabajador de la seccion de analisis.
+ */
+function normalizarTexto(texto) {
+  return String(texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
 
 /** Fecha local en formato AAAA-MM-DD, que es lo que espera el backend. */
 function aISO(fecha) {
@@ -282,42 +296,189 @@ function descripcionRango(desde, hasta) {
   return 'el histórico completo';
 }
 
-async function cargarPuntajes() {
-  const token = localStorage.getItem('token');
-  const nombre = document.getElementById('buscarNombre').value.trim();
+// ══════════════════════════════════════════════════════════════════════════
+//  AUTOEVALUACION: UNA SOLA VISTA, POR MES
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Antes eran dos tablas que medían cosas distintas y ninguna servía:
+//
+//  - 'Filtrar puntajes' listaba TODOS los meses mezclados y ordenados por
+//    puntaje, así que agosto aparecía entre dos filas de julio. Y el puesto
+//    que enseñaba era el guardado en la base, una foto del último recálculo:
+//    llegó a mostrar un puesto 2 sin ningún puesto 1 delante.
+//  - 'Quiénes no la han hecho hoy' contaba el día, cuando el cupo pasó a ser
+//    de dos por semana.
+//
+// Ahora el servidor recalcula el mes que se está mirando antes de responder,
+// así que los puestos son siempre los de verdad.
 
-  const params = {};
-  if (nombre) params.nombre = nombre;
+let mesAutoevalSeleccionado = null;
+let filtroAutoeval = 'todos';
+let datosAutoeval = null;
+
+// Por defecto se cuenta solo al personal evaluado, como en los reportes de
+// WhatsApp. La tabla anterior si incluia a los admins, asi que el interruptor
+// existe para que la diferencia se vea y no parezca que falta gente.
+let incluirAdminsAutoeval = false;
+
+function prepararFiltrosAutoevaluacion() {
+  const select = document.getElementById('selMesAutoeval');
+  if (select) {
+    select.addEventListener('change', () => {
+      mesAutoevalSeleccionado = select.value;
+      cargarAutoevaluaciones();
+    });
+  }
+
+  document.querySelectorAll('[data-autoeval]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      filtroAutoeval = chip.dataset.autoeval;
+      document.querySelectorAll('[data-autoeval]').forEach(c => c.classList.remove('activo'));
+      chip.classList.add('activo');
+      pintarAutoevaluaciones();
+    });
+  });
+
+  const buscador = document.getElementById('buscarAutoeval');
+  // Filtra en el navegador: son 22 filas, no merece un viaje al servidor por
+  // cada tecla.
+  if (buscador) buscador.addEventListener('input', pintarAutoevaluaciones);
+
+  const btnAdmins = document.getElementById('btnIncluirAdminsAutoeval');
+  if (btnAdmins) {
+    btnAdmins.addEventListener('click', () => {
+      incluirAdminsAutoeval = !incluirAdminsAutoeval;
+      btnAdmins.textContent = incluirAdminsAutoeval
+        ? '👤 Ocultar administradores'
+        : '👤 Incluir administradores';
+      cargarAutoevaluaciones();
+    });
+  }
+
+  const btnArchivados = document.getElementById('btnToggleArchivadosAutoeval');
+  if (btnArchivados) {
+    btnArchivados.addEventListener('click', () => {
+      mostrandoArchivadosAutoeval = !mostrandoArchivadosAutoeval;
+      btnArchivados.textContent = mostrandoArchivadosAutoeval
+        ? '👁️ Ocultar dados de baja'
+        : '👁️ Mostrar ocultos';
+      cargarAutoevaluaciones();
+    });
+  }
+}
+
+async function cargarAutoevaluaciones() {
+  const token = localStorage.getItem('token');
+  const tbody = document.getElementById('tablaPuntajes');
+  if (!tbody) return;
+
+  tbody.innerHTML = '<tr><td colspan="6">Cargando...</td></tr>';
 
   try {
-    const res = await axios.get('/api/admin/puntajes', {
+    const params = {
+      mostrarArchivados: mostrandoArchivadosAutoeval,
+      incluirAdmins: incluirAdminsAutoeval
+    };
+    if (mesAutoevalSeleccionado) params.mes = mesAutoevalSeleccionado;
+
+    const res = await axios.get('/api/admin/autoevaluaciones', {
       params,
       headers: { Authorization: `Bearer ${token}` }
     });
 
-    const datos = res.data;
-    const tbody = document.getElementById('tablaPuntajes');
-    tbody.innerHTML = '';
+    datosAutoeval = res.data;
+    mesAutoevalSeleccionado = datosAutoeval.mes;
 
-    if (datos.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4">No hay datos</td></tr>';
-      return;
+    const select = document.getElementById('selMesAutoeval');
+    if (select) {
+      select.innerHTML = datosAutoeval.mesesDisponibles
+        .map(m => `<option value="${m.clave}">${m.etiqueta}</option>`)
+        .join('');
+      select.value = datosAutoeval.mes;
     }
 
-    datos.forEach(row => {
-      tbody.innerHTML += `
-        <tr>
-          <td>${row.nombre}</td>
-          <td>${row.quincena}</td>
-          <td>${row.puntajetotal}</td>
-          <td>${row.posicion}</td>
-        </tr>
-      `;
-    });
+    // La columna de la semana solo tiene sentido en el mes en curso: en un mes
+    // pasado, 'esta semana' no significa nada.
+    const thSemana = document.getElementById('thSemanaAutoeval');
+    if (thSemana) thSemana.style.display = datosAutoeval.esMesActual ? '' : 'none';
+
+    pintarAutoevaluaciones();
   } catch (error) {
-    console.error('Error cargarPuntajes:', error);
-    alert('Error cargando puntajes: ' + error.message);
+    console.error('Error cargarAutoevaluaciones:', error);
+    tbody.innerHTML = '<tr><td colspan="6">No se pudo cargar. Revisa la consola.</td></tr>';
   }
+}
+
+function pintarAutoevaluaciones() {
+  if (!datosAutoeval) return;
+
+  const tbody = document.getElementById('tablaPuntajes');
+  const resumen = document.getElementById('resumenAutoeval');
+  const buscador = document.getElementById('buscarAutoeval');
+  const texto = buscador ? normalizarTexto(buscador.value.trim()) : '';
+
+  let filas = datosAutoeval.filas;
+
+  if (filtroAutoeval === 'hicieron') filas = filas.filter(f => f.hechasEnElMes > 0);
+  else if (filtroAutoeval === 'no') filas = filas.filter(f => f.hechasEnElMes === 0);
+
+  if (texto) {
+    filas = filas.filter(f => normalizarTexto(`${f.nombre} ${f.apellido} ${f.area}`).includes(texto));
+  }
+
+  if (resumen) {
+    const r = datosAutoeval.resumen;
+    const partes = [
+      `📅 <strong>${datosAutoeval.etiquetaMes}</strong>`,
+      `👥 ${r.total} personas`,
+      `✅ ${r.conAlguna} con autoevaluaciones`,
+      `⚠️ ${r.sinNinguna} sin ninguna`
+    ];
+    if (datosAutoeval.esMesActual && datosAutoeval.semana) {
+      partes.push(`🗓️ ${r.alDiaSemana} al día esta semana (${datosAutoeval.semana.objetivo} por persona)`);
+    }
+    resumen.innerHTML = partes.join(' · ');
+  }
+
+  if (filas.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6">Nadie coincide con el filtro.</td></tr>';
+    return;
+  }
+
+  const objetivo = datosAutoeval.semana ? datosAutoeval.semana.objetivo : 0;
+
+  tbody.innerHTML = filas.map(f => {
+    const medalla = f.posicion === 1 ? '🥇' : f.posicion === 2 ? '🥈' : f.posicion === 3 ? '🥉' : '';
+    const puesto = f.posicion ? `${medalla} ${f.posicion}` : '—';
+
+    // Quien no hizo ninguna es justo a quien hay que perseguir: se marca.
+    const sinNinguna = f.hechasEnElMes === 0;
+    const estiloFila = sinNinguna ? 'background: rgba(245, 158, 11, 0.10);' : '';
+    const delMes = sinNinguna
+      ? '<span style="color:#fbbf24;">0</span>'
+      : String(f.hechasEnElMes);
+
+    let celdaSemana = '';
+    if (datosAutoeval.esMesActual) {
+      const hechas = f.hechasEstaSemana || 0;
+      const alDia = hechas >= objetivo;
+      const color = alDia ? '#4ade80' : '#fbbf24';
+      celdaSemana = `<td style="color:${color};">${hechas} de ${objetivo}</td>`;
+    }
+
+    const baja = f.archivado ? ' <span style="font-size:10px; color:#f87171;">(baja)</span>' : '';
+
+    return `
+      <tr style="${estiloFila}">
+        <td>${puesto}</td>
+        <td>${f.nombre} ${f.apellido}${baja}</td>
+        <td>${f.area}</td>
+        <td>${delMes}</td>
+        <td>${f.puntajeMes}</td>
+        ${celdaSemana}
+      </tr>
+    `;
+  }).join('');
 }
 
 async function exportarAGoogleSheets() {
@@ -1570,13 +1731,7 @@ window.archivarUsuario = async function(id) {
         setTimeout(() => document.getElementById('btnVerFaltantes').click(), 50);
       }
       
-      const containerA = document.getElementById('faltantesAutoevaluacionContainer');
-      if(containerA.style.display === 'block'){
-        document.getElementById('btnVerFaltantesAutoevaluacion').click();
-        setTimeout(() => document.getElementById('btnVerFaltantesAutoevaluacion').click(), 50);
-      }
-
-      if (typeof cargarPuntajes === 'function') cargarPuntajes();
+      if (typeof cargarAutoevaluaciones === 'function') cargarAutoevaluaciones();
       if (typeof cargarHoras === 'function') cargarHoras();
     }
   } catch (error) {
@@ -1618,11 +1773,7 @@ window.editarTelefonoUsuario = async function(id, telefonoActual) {
           document.getElementById('btnVerFaltantes').click(); 
           setTimeout(() => document.getElementById('btnVerFaltantes').click(), 50); 
         }
-        const containerA = document.getElementById('faltantesAutoevaluacionContainer');
-        if(containerA.style.display === 'block'){
-          document.getElementById('btnVerFaltantesAutoevaluacion').click(); 
-          setTimeout(() => document.getElementById('btnVerFaltantesAutoevaluacion').click(), 50); 
-        }
+        if (typeof cargarAutoevaluaciones === 'function') cargarAutoevaluaciones();
       }
     } catch (error) {
       Swal.fire('Error', error.response?.data?.error || error.message, 'error');
@@ -1722,88 +1873,9 @@ if (btnVerFaltantes) {
   });
 }
 
-const btnVerFaltantesAutoevaluacion = document.getElementById('btnVerFaltantesAutoevaluacion');
-const btnToggleArchivadosAutoeval = document.getElementById('btnToggleArchivadosAutoeval');
+// El bloque de 'Quiénes no la han hecho hoy' se eliminó: contaba el día, y el
+// cupo pasó a ser de dos por semana. Lo sustituye la vista por mes de arriba.
 
-if (btnToggleArchivadosAutoeval) {
-  btnToggleArchivadosAutoeval.addEventListener('click', () => {
-    mostrandoArchivadosAutoeval = !mostrandoArchivadosAutoeval;
-    btnToggleArchivadosAutoeval.innerHTML = mostrandoArchivadosAutoeval ? '👁️ Ocultar Archivados' : '👁️ Mostrar Ocultos';
-    const container = document.getElementById('faltantesAutoevaluacionContainer');
-    if(container.style.display === 'block'){
-       document.getElementById('btnVerFaltantesAutoevaluacion').click();
-       setTimeout(() => document.getElementById('btnVerFaltantesAutoevaluacion').click(), 50);
-    }
-  });
-}
-
-if (btnVerFaltantesAutoevaluacion) {
-  btnVerFaltantesAutoevaluacion.addEventListener('click', async () => {
-    const token = localStorage.getItem('token');
-    const container = document.getElementById('faltantesAutoevaluacionContainer');
-    const tbody = document.getElementById('tablaFaltantesAutoevaluacion');
-    const titulo = document.getElementById('tituloFaltantesAutoevaluacion');
-
-    if (container.style.display === 'block') {
-      container.style.display = 'none';
-      btnVerFaltantesAutoevaluacion.textContent = '📝 Quiénes no la han hecho hoy';
-      if(btnToggleArchivadosAutoeval) btnToggleArchivadosAutoeval.style.display = 'none';
-      return;
-    }
-
-    try {
-      btnVerFaltantesAutoevaluacion.textContent = 'Cargando...';
-      btnVerFaltantesAutoevaluacion.disabled = true;
-
-      const res = await axios.get(`/api/admin/faltantes-autoevaluacion-hoy?mostrarArchivados=${mostrandoArchivadosAutoeval}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      const { faltantes, total, fecha } = res.data;
-
-      titulo.textContent = `Faltantes de Autoevaluación del ${fecha} (Total: ${total})${mostrandoArchivadosAutoeval ? ' [MODO ARCHIVADOS]' : ''}`;
-      tbody.innerHTML = '';
-
-      if (total === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">✅ Todos han realizado su autoevaluación hoy</td></tr>';
-      } else {
-        faltantes.forEach(f => {
-          const btnText = f.archivado ? 'Restaurar' : 'Archivar';
-          const btnColor = f.archivado ? '#4caf50' : '#f44336';
-          tbody.innerHTML += `
-            <tr style="opacity: ${f.archivado ? '0.6' : '1'};">
-              <td>${f.nombre}</td>
-              <td>${f.apellido || '—'}</td>
-              <td>${f.correo}</td>
-              <td>
-                ${f.telefono || '—'} 
-                <button onclick="editarTelefonoUsuario('${f.id}', '${f.telefono || ''}')" style="background:transparent; border:none; cursor:pointer;" title="Editar Teléfono">✏️</button>
-              </td>
-              <td>${f.area || '—'}</td>
-              <td>
-                <button class="btn-archivar" style="background:${btnColor}" onclick="archivarUsuario('${f.id}')">
-                  ${f.archivado ? '🔙' : '🗃️'} ${btnText}
-                </button>
-              </td>
-            </tr>
-          `;
-        });
-      }
-
-      container.style.display = 'block';
-      btnVerFaltantesAutoevaluacion.textContent = '📝 Ocultar lista';
-      if(btnToggleArchivadosAutoeval) btnToggleArchivadosAutoeval.style.display = 'inline-block';
-      
-      container.scrollIntoView({ behavior: 'smooth' });
-    } catch (error) {
-      console.error('Error cargar faltantes autoevaluación:', error);
-      alert('Error al cargar faltantes de autoevaluación: ' + error.message);
-      btnVerFaltantesAutoevaluacion.textContent = '📝 Quiénes no la han hecho hoy';
-    } finally {
-      btnVerFaltantesAutoevaluacion.disabled = false;
-    }
-  });
-}
 
 // Variable global para almacenar el ID que estamos editando actualmente
 let edicionAsistenciaId = null;

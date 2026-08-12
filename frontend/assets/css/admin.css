@@ -73,11 +73,21 @@ h2::before {
 }
 
 .filters input,
+.filters select,
 .filters button {
   height: 34px;
   border-radius: 8px;
   border: none;
   font-size: 13px;
+}
+
+.filters select {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 10px;
+  color: #e2e8f0;
+  padding: 0 10px;
+  cursor: pointer;
 }
 
 .filters input {
