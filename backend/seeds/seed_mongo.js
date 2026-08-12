@@ -23,6 +23,7 @@ const seedAreas = async () => {
             { nombre: 'MARKETING', descripcion: 'Acrónimo: MRK' },
             { nombre: 'LEGAL', descripcion: 'LEGA' },
             { nombre: 'COMERCIAL', descripcion: 'COMERC' },
+            { nombre: 'RRCC', descripcion: 'Relaciones Comunitarias' },
             { nombre: 'N/A', descripcion: 'N/A' }
         ];
 

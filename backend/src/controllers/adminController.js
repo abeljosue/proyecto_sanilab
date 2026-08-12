@@ -3,10 +3,13 @@ const Asistencia = require('../models/Asistencia');
 const Usuario = require('../models/Usuario');
 const RankingQuincenal = require('../models/RankingQuincenal');
 const Autoevaluacion = require('../models/Autoevaluacion');
+const Area = require('../models/Area');
+const HorarioTrabajador = require('../models/HorarioTrabajador');
 const googleSheetsService = require('../services/googleSheetsService');
 const { getFechaHoyMidnight, getRangoHoy, getLocalDate } = require('../utils/dateUtils');
 const turnos = require('../utils/turnos');
 const reporteTexto = require('../services/reporteTextoService');
+const horarios = require('../services/horarioService');
 
 // Neutraliza los caracteres con significado especial en una expresión regular,
 // para que el texto que escribe el administrador se busque de forma literal.
@@ -50,7 +53,7 @@ exports.getHoras = async (req, res) => {
     const asistencias = await Asistencia.find(filter)
       .populate({
         path: 'usuarioid',
-        select: 'nombre apellido areaid',
+        select: 'nombre apellido areaid telefono',
         populate: { path: 'areaid', select: 'nombre' }
       })
       .sort({ fecha: -1 });
@@ -64,13 +67,27 @@ exports.getHoras = async (req, res) => {
       const m = Math.floor((seconds % 3600) / 60);
       const s = Math.floor(seconds % 60);
       const horatotal = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-      const estado = a.horasalida ? 'Completado' : 'En Curso';
+
+      // El estado se LEE del registro, no se deduce de 'horasalida'.
+      //
+      // Antes era `a.horasalida ? 'Completado' : 'En Curso'`, y al pausar la
+      // jornada se rellena 'horasalida', así que quien estaba en pausa (o en su
+      // segundo tramo) aparecía como "Completado" aunque siguiera trabajando.
+      //
+      // La tabla solo distingue dos situaciones, así que 'En Pausa' y
+      // 'En jornada' se muestran igual: la jornada no ha terminado.
+      // No hace falta tocar la base: el campo 'estado' ya existe y ya guarda
+      // el valor correcto.
+      const jornadaCerrada = a.estado === 'Jornada terminada';
 
       return {
         _id: a._id,
         nombre: nombreCompleto,
         area: areaNombre,
-        estado: estado,
+        telefono: (u && u.telefono) ? u.telefono : null,
+        estado: jornadaCerrada ? 'Completado' : 'En curso',
+        estadoReal: a.estado,
+        enPausa: a.estado === 'En Pausa',
         fecha: a.fecha.toISOString().split('T')[0],
         horaentrada: a.horaentrada,
         horasalida: a.horasalida,
@@ -144,7 +161,13 @@ exports.getReporteAsistencia = async (req, res) => {
     }
 
     const asistencias = await Asistencia.find(query).populate('usuarioid', 'nombre apellido');
-    
+
+    // Horario de cada implicado, para juzgar la puntualidad contra SU hora.
+    // Quien no tenga horario cae en la regla del minuto (ver utils/turnos).
+    const mapaHorarios = await horarios.cargarHorarios(
+      [...new Set(asistencias.map(a => String(a.usuarioid?._id || a.usuarioid)))]
+    );
+
     // Calcular estadísticas
     let totalHoras = 0;
     let minutosTardanza = 0;
@@ -160,7 +183,10 @@ exports.getReporteAsistencia = async (req, res) => {
       // La puntualidad se calcula AQUÍ, no al marcar entrada. Así los registros
       // históricos también quedan evaluados y cambiar la tolerancia recalcula
       // los informes anteriores sin necesidad de migrar nada.
-      const evaluacion = turnos.evaluarEntrada(a.horaentrada);
+      const evaluacion = turnos.evaluarEntrada(
+        a.horaentrada,
+        horarios.horaEsperada(mapaHorarios, a.usuarioid?._id || a.usuarioid, a.fecha)
+      );
       if (evaluacion.esTardanza) {
         totalTardanzas++;
         minutosTardanza += evaluacion.minutosTarde;
@@ -189,6 +215,8 @@ exports.getReporteAsistencia = async (req, res) => {
         puntualidad: evaluacion.estado,
         tardanza: evaluacion.minutosTarde,
         esTardanza: evaluacion.esTardanza,
+        origenTardanza: evaluacion.origen,
+        horaEsperada: evaluacion.horaEsperada,
         estado: a.estado,
         cierreAutomatico: a.cierre_automatico || false
       };
@@ -246,10 +274,15 @@ exports.getEstadisticasUsuario = async (req, res) => {
 
     // La puntualidad se calcula por turno, no se lee de tardanza_minutos (que
     // se quedó siempre en 0 al no existir horarios individuales).
+    const mapaHorarios = await horarios.cargarHorarios([usuarioId]);
+
     let tardanzas = 0;
     let diasConTardanza = 0;
     for (const a of asistencias) {
-      const ev = turnos.evaluarEntrada(a.horaentrada);
+      const ev = turnos.evaluarEntrada(
+        a.horaentrada,
+        horarios.horaEsperada(mapaHorarios, usuarioId, a.fecha)
+      );
       if (ev.esTardanza) {
         diasConTardanza++;
         tardanzas += ev.minutosTarde;
@@ -261,14 +294,14 @@ exports.getEstadisticasUsuario = async (req, res) => {
     const queryAuto = { usuarioid: usuarioId };
     if (filtroFechas) queryAuto.fechaevaluacion = filtroFechas;
     const autoevaluaciones = await Autoevaluacion.find(queryAuto);
-    const promedioEval = autoevaluaciones.length > 0 
-      ? autoevaluaciones.reduce((sum, a) => sum + (a.puntajetotal || 0), 0) / autoevaluaciones.length 
+    const promedioEval = autoevaluaciones.length > 0
+      ? autoevaluaciones.reduce((sum, a) => sum + (a.puntajetotal || 0), 0) / autoevaluaciones.length
       : 0;
-    
+
     // Último ranking
     const ultimoRanking = await RankingQuincenal.findOne({ usuarioid: usuarioId })
       .sort({ quincena: -1 });
-    
+
     res.json({
       success: true,
       usuario: {
@@ -348,6 +381,11 @@ exports.exportHorasSheets = async (req, res) => {
       .populate('usuarioid', 'nombre apellido')
       .sort({ fecha: -1 });
 
+    // Mismo criterio de puntualidad que el resto del panel.
+    const mapaHorarios = await horarios.cargarHorarios(
+      [...new Set(asistencias.map(x => String(x.usuarioid?._id || x.usuarioid)))]
+    );
+
     const rows = asistencias.map(a => {
       const u = a.usuarioid;
       const seconds = a.horas_trabajadas || 0;
@@ -356,8 +394,11 @@ exports.exportHorasSheets = async (req, res) => {
       const s = Math.floor(seconds % 60);
       const horatotal = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 
-      // Tardanza calculada al vuelo con los turnos, no la almacenada (siempre 0).
-      const evaluacion = turnos.evaluarEntrada(a.horaentrada);
+      // Tardanza calculada al vuelo, no la almacenada (siempre 0 en el histórico).
+      const evaluacion = turnos.evaluarEntrada(
+        a.horaentrada,
+        horarios.horaEsperada(mapaHorarios, u ? u._id : null, a.fecha)
+      );
 
       return {
         nombre: u ? u.nombre : 'Desconocido',
@@ -581,9 +622,31 @@ exports.updateHoras = async (req, res) => {
 };
 
 // ========== EXISTENTE: ARCHIVAR/RESTAURAR USUARIO ==========
+// Da de baja o reincorpora a una persona.
+//
+// El campo 'archivado' ya hacia de baja en todo el sistema: impide el login
+// (authController), corta la sesion (authMiddleware) y deja a la persona fuera
+// de reportes, ranking y faltantes. Lo que faltaba era poder pulsarlo desde la
+// lista de usuarios: el boton solo existia dentro de "Sin marcar hoy", asi que
+// solo se podia dar de baja a quien casualmente no hubiera marcado ese dia.
 exports.toggleArchivarUsuario = async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Sin esto, un id mal formado provocaba un CastError que salia como 500.
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, error: 'Identificador inválido.' });
+    }
+
+    // Darse de baja a uno mismo cierra la sesion al instante y deja al
+    // administrador fuera de su propio panel.
+    if (req.user && String(req.user.id) === String(id)) {
+      return res.status(400).json({
+        success: false,
+        error: 'No puedes darte de baja a ti mismo. Pídeselo a otro administrador.'
+      });
+    }
+
     const usuario = await Usuario.findById(id);
 
     if (!usuario) {
@@ -593,10 +656,15 @@ exports.toggleArchivarUsuario = async (req, res) => {
     usuario.archivado = !usuario.archivado;
     await usuario.save();
 
-    res.json({ 
-      success: true, 
-      message: usuario.archivado ? 'Usuario archivado/ocultado correctamente.' : 'Usuario restaurado correctamente.',
-      archivado: usuario.archivado
+    const nombre = `${usuario.nombre} ${usuario.apellido || ''}`.trim();
+
+    res.json({
+      success: true,
+      message: usuario.archivado
+        ? `${nombre} está dado de baja: ya no puede iniciar sesión ni aparece en los reportes.`
+        : `${nombre} ha sido reincorporado y vuelve a tener acceso.`,
+      archivado: usuario.archivado,
+      nombre
     });
   } catch (error) {
     console.error('Error al archivar usuario:', error);
@@ -727,17 +795,46 @@ exports.desbloquearUsuario = async (req, res) => {
 // sensibles. Evita tener que escribir a mano el ObjectId en las estadísticas.
 exports.getListaUsuarios = async (req, res) => {
   try {
-    const usuarios = await Usuario.find({ archivado: { $ne: true } })
-      .select('nombre apellido correo rol')
+    // Por defecto se ocultan los archivados, como en el resto del panel.
+    // La vista de gestión de usuarios los pide con ?incluirArchivados=true
+    // para poder restaurarlos.
+    const incluirArchivados = req.query.incluirArchivados === 'true';
+    const filtro = incluirArchivados ? {} : { archivado: { $ne: true } };
+
+    const usuarios = await Usuario.find(filtro)
+      .select('nombre apellido correo rol telefono areaid activo archivado')
+      .populate('areaid', 'nombre')
       .sort({ nombre: 1, apellido: 1 });
+
+    // Cuantos dias de horario tiene configurado cada uno, para poder filtrar
+    // por quien todavia no lo tiene igual que se hace con el telefono.
+    const diasPorUsuario = await HorarioTrabajador.aggregate([
+      { $group: { _id: '$usuario_id', dias: { $sum: 1 } } }
+    ]);
+    const horarioDe = new Map(diasPorUsuario.map(d => [String(d._id), d.dias]));
 
     res.json({
       success: true,
+      // 'sinTelefono' permite al panel destacar de un vistazo a quienes perdieron
+      // el dato por el fallo del registro (el formulario lo pedía y el backend
+      // lo descartaba). Son los que hay que rellenar a mano.
+      sinTelefono: usuarios.filter(u => !u.telefono).length,
+      sinHorario: usuarios.filter(u => !horarioDe.get(String(u._id))).length,
       usuarios: usuarios.map(u => ({
         id: u._id,
+        // 'nombre' se mantiene como nombre completo para no romper el
+        // desplegable de estadísticas, que ya lo consumía así.
         nombre: `${u.nombre} ${u.apellido || ''}`.trim(),
+        nombrePila: u.nombre,
+        apellido: u.apellido || '',
         correo: u.correo,
-        rol: u.rol
+        rol: u.rol,
+        telefono: u.telefono || '',
+        areaId: u.areaid ? u.areaid._id : null,
+        area: u.areaid ? u.areaid.nombre : 'Sin área',
+        activo: u.activo,
+        archivado: u.archivado || false,
+        diasHorario: horarioDe.get(String(u._id)) || 0
       }))
     });
   } catch (error) {
@@ -746,12 +843,284 @@ exports.getListaUsuarios = async (req, res) => {
   }
 };
 
+// ========== HORARIO SEMANAL DE UN TRABAJADOR ==========
+// Usa el modelo HorarioTrabajador, que ya existía desde el principio pero no
+// tenía ninguna pantalla: una fila por persona y día de la semana.
+//
+// Se eligió frente a meter un solo campo en Usuario porque 6 de las 22 personas
+// del equipo entran a hora distinta según el día, y un único valor no las
+// representa. No hay migración: la colección ya existe y quien no tenga
+// horario simplemente no tiene filas.
+const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+/** "8:5" o "08:05" -> "08:05". Devuelve null si no es una hora válida. */
+function normalizarHora(valor) {
+  const m = String(valor || '').trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+}
+
+exports.getHorarioUsuario = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, error: 'Identificador inválido.' });
+    }
+
+    const filas = await HorarioTrabajador.find({ usuario_id: id }).sort({ dia_semana: 1 });
+
+    res.json({
+      success: true,
+      dias: filas.map(f => ({
+        dia_semana: f.dia_semana,
+        nombreDia: DIAS_SEMANA[f.dia_semana],
+        hora_entrada_esperada: f.hora_entrada_esperada,
+        hora_salida_esperada: f.hora_salida_esperada,
+        activo: f.activo !== false
+      }))
+    });
+  } catch (error) {
+    console.error('Error al obtener el horario:', error);
+    res.status(500).json({ success: false, error: 'Error del servidor' });
+  }
+};
+
+/**
+ * Reemplaza el horario completo de la semana de una persona.
+ *
+ * Se guarda la semana entera de golpe, no día a día: así lo que queda en la
+ * base es exactamente lo que se ve en el formulario. Los días que no llegan en
+ * la petición se borran, que es como se marca "ese día no trabaja".
+ */
+exports.guardarHorarioUsuario = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { dias } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, error: 'Identificador inválido.' });
+    }
+    if (!Array.isArray(dias)) {
+      return res.status(400).json({ success: false, error: 'Faltan los días del horario.' });
+    }
+
+    const usuario = await Usuario.findById(id).select('nombre apellido');
+    if (!usuario) {
+      return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    }
+
+    const validos = [];
+    const vistos = new Set();
+
+    for (const d of dias) {
+      const dia = Number(d.dia_semana);
+      if (!Number.isInteger(dia) || dia < 0 || dia > 6) {
+        return res.status(400).json({ success: false, error: `Día de la semana inválido: ${d.dia_semana}` });
+      }
+      if (vistos.has(dia)) {
+        return res.status(400).json({ success: false, error: `El ${DIAS_SEMANA[dia]} viene repetido.` });
+      }
+      vistos.add(dia);
+
+      const entrada = normalizarHora(d.hora_entrada_esperada);
+      const salida = normalizarHora(d.hora_salida_esperada);
+
+      // El modelo exige ambas horas, así que un día a medias se rechaza en
+      // lugar de guardarse mal.
+      if (!entrada || !salida) {
+        return res.status(400).json({
+          success: false,
+          error: `El ${DIAS_SEMANA[dia]} necesita hora de entrada y de salida.`
+        });
+      }
+
+      validos.push({ dia_semana: dia, hora_entrada_esperada: entrada, hora_salida_esperada: salida });
+    }
+
+    // Fuera los días que ya no están en el formulario.
+    await HorarioTrabajador.deleteMany({
+      usuario_id: id,
+      dia_semana: { $nin: validos.map(v => v.dia_semana) }
+    });
+
+    for (const v of validos) {
+      await HorarioTrabajador.findOneAndUpdate(
+        { usuario_id: id, dia_semana: v.dia_semana },
+        { usuario_id: id, ...v, activo: true },
+        { upsert: true, setDefaultsOnInsert: true }
+      );
+    }
+
+    res.json({
+      success: true,
+      message: validos.length === 0
+        ? 'Horario borrado: no se espera a esta persona ningún día.'
+        : `Horario guardado: ${validos.length} día(s).`,
+      dias: validos.length
+    });
+  } catch (error) {
+    console.error('Error al guardar el horario:', error);
+    res.status(500).json({ success: false, error: error.message || 'Error del servidor' });
+  }
+};
+
+// ========== AREAS: LISTAR Y CREAR DESDE EL PANEL ==========
+// El sembrado (seeds/seed_mongo.js) solo sirve para instalaciones nuevas: en
+// produccion no se puede ejecutar sin la cadena de conexion. Estas dos rutas
+// permiten crear las areas que falten desde el propio panel, sin tocar la base
+// a mano y sin migraciones.
+exports.getAreas = async (req, res) => {
+  try {
+    const areas = await Area.find({}).sort({ nombre: 1 });
+
+    // Cuantas personas hay en cada area, para ver de un vistazo cuales estan
+    // vacias y cuales se usan de verdad.
+    const conteos = await Usuario.aggregate([
+      { $match: { archivado: { $ne: true } } },
+      { $group: { _id: '$areaid', total: { $sum: 1 } } }
+    ]);
+    const porArea = new Map(conteos.map(c => [String(c._id), c.total]));
+
+    res.json({
+      success: true,
+      areas: areas.map(a => ({
+        id: a._id,
+        nombre: a.nombre,
+        descripcion: a.descripcion || '',
+        activo: a.activo !== false,
+        usuarios: porArea.get(String(a._id)) || 0
+      })),
+      sinArea: porArea.get('null') || porArea.get('undefined') || 0
+    });
+  } catch (error) {
+    console.error('Error al listar areas:', error);
+    res.status(500).json({ success: false, error: 'Error del servidor' });
+  }
+};
+
+exports.createArea = async (req, res) => {
+  try {
+    const nombre = String(req.body.nombre || '').trim();
+    const descripcion = String(req.body.descripcion || '').trim();
+
+    if (!nombre) {
+      return res.status(400).json({ success: false, error: 'El nombre del área es obligatorio.' });
+    }
+
+    // El nombre es unico en el modelo. Se comprueba antes para devolver un
+    // mensaje claro en lugar del error E11000 de Mongo.
+    // La comparacion ignora mayusculas para no acabar con "RRCC" y "rrcc".
+    const yaExiste = await Area.findOne({ nombre: new RegExp(`^${escaparRegex(nombre)}$`, 'i') });
+    if (yaExiste) {
+      return res.status(409).json({ success: false, error: `El área "${yaExiste.nombre}" ya existe.` });
+    }
+
+    const area = await Area.create({ nombre, descripcion });
+
+    res.status(201).json({
+      success: true,
+      message: `Área "${area.nombre}" creada.`,
+      area: { id: area._id, nombre: area.nombre, descripcion: area.descripcion || '', usuarios: 0 }
+    });
+  } catch (error) {
+    console.error('Error al crear area:', error);
+    res.status(500).json({ success: false, error: error.message || 'Error del servidor' });
+  }
+};
+
+// ========== ACTUALIZAR DATOS DE UN USUARIO ==========
+// Pensado sobre todo para rellenar los teléfonos que se perdieron, pero sirve
+// para corregir cualquier dato de contacto sin entrar a la base de datos.
+//
+// Solo se aceptan campos QUE YA EXISTEN en el modelo Usuario: no hace falta
+// ninguna migración ni tocar el esquema. El correo y la contraseña quedan
+// fuera a propósito — cambiar el correo rompería el acceso del trabajador, y
+// la contraseña tiene su propio flujo.
+const CAMPOS_EDITABLES = ['nombre', 'apellido', 'telefono', 'areaid', 'genero', 'cumpleanos'];
+
+exports.updateUsuario = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, error: 'Identificador inválido.' });
+    }
+
+    const usuario = await Usuario.findById(id);
+    if (!usuario) {
+      return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    }
+
+    const cambios = [];
+
+    for (const campo of CAMPOS_EDITABLES) {
+      if (!(campo in req.body)) continue;
+      let valor = req.body[campo];
+
+      if (campo === 'telefono') {
+        // Se guarda solo con dígitos, igual que en el registro, para que los
+        // números queden comparables vengan como vengan escritos.
+        valor = valor ? String(valor).replace(/\D/g, '') : null;
+        if (valor && valor.length < 6) {
+          return res.status(400).json({ success: false, error: 'El teléfono es demasiado corto.' });
+        }
+      }
+
+      if (campo === 'areaid') {
+        if (valor && !mongoose.Types.ObjectId.isValid(valor)) {
+          return res.status(400).json({ success: false, error: 'El área indicada no es válida.' });
+        }
+        valor = valor || null;
+      }
+
+      if (campo === 'nombre') {
+        valor = String(valor || '').trim();
+        if (!valor) {
+          return res.status(400).json({ success: false, error: 'El nombre no puede quedar vacío.' });
+        }
+      }
+
+      if (campo === 'genero' && valor && !['Masculino', 'Femenino', 'Otro'].includes(valor)) {
+        return res.status(400).json({ success: false, error: 'Género inválido.' });
+      }
+
+      if (String(usuario[campo] ?? '') !== String(valor ?? '')) {
+        cambios.push(campo);
+        usuario[campo] = valor;
+      }
+    }
+
+    if (cambios.length === 0) {
+      return res.json({ success: true, message: 'No había nada que cambiar.', cambios: [] });
+    }
+
+    await usuario.save();
+
+    res.json({
+      success: true,
+      message: `Actualizado: ${cambios.join(', ')}.`,
+      cambios,
+      usuario: {
+        id: usuario._id,
+        nombre: `${usuario.nombre} ${usuario.apellido || ''}`.trim(),
+        telefono: usuario.telefono || ''
+      }
+    });
+  } catch (error) {
+    console.error('Error al actualizar usuario:', error);
+    res.status(500).json({ success: false, error: error.message || 'Error del servidor' });
+  }
+};
+
 // ========== EXISTENTE: ACTUALIZAR TELÉFONO ==========
 exports.updateTelefono = async (req, res) => {
   try {
     const { id } = req.params;
     const { telefono } = req.body;
-    
+
     const usuario = await Usuario.findById(id);
 
     if (!usuario) {
@@ -761,8 +1130,8 @@ exports.updateTelefono = async (req, res) => {
     usuario.telefono = telefono || null;
     await usuario.save();
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'Teléfono actualizado correctamente.',
       telefono: usuario.telefono
     });

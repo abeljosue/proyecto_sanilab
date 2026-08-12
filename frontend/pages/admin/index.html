@@ -3,6 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Panel Admin | Sanilab</title>
   <link rel="stylesheet" href="../../assets/css/admin.css">
   <link rel="icon" type="image/png" href="../../assets/images/Sanilab-favicon.png" />
@@ -14,110 +15,186 @@
     <a href="/pages/home/index.html" class="back-link">← Volver</a>
     <h1>Panel Administrativo</h1>
 
-    <div class="filters">
-      <input type="search" id="buscarNombre" placeholder="Buscar por persona..." autocomplete="off">
-      <input type="date" id="fechaDesde" title="Fecha de inicio (Desde)">
-      <input type="date" id="fechaHasta" title="Fecha límite (Hasta)">
-      <button id="btnFiltrarHoras">Filtrar horas</button>
-      <button id="btnFiltrarPuntajes">Filtrar puntajes</button>
-      <button id="btnExportarSheets" class="btn-export-sheets">📊 Exportar a Google Sheets</button>
-      
-      <!-- 🆕 NUEVOS BOTONES PARA MEJORAS -->
-      <!-- Renombrado: antes se llamaba "Reporte Asistencia" y se confundia con
-           los reportes de WhatsApp. Este es la tabla detallada en pantalla. -->
-      <button id="btnReporteAsistencia" style="background: #22c55e; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer;">📊 Detalle de asistencia</button>
-      <button id="btnEstadisticasUsuario" style="background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer;">📈 Estadísticas Usuario</button>
-      <button id="btnUsuariosBloqueados" style="background: #ef4444; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer;">🔒 Usuarios Bloqueados</button>
-    </div>
+    <!-- ==========================================================
+         BARRA DE ACCIONES
+         Todo lo que abre una vista aparte vive aqui, agrupado por
+         para que sirve. Antes estaba repartido en cuatro sitios y
+         se cruzaba con los filtros de la tabla de horas.
+         ========================================================== -->
+    <nav class="acciones" aria-label="Acciones del panel">
+      <div class="acciones-grupo">
+        <span class="acciones-titulo">Día a día</span>
+        <button id="btnReportesWhatsapp" class="btn-accion btn-wa">💬 Reportes WhatsApp</button>
+        <button id="btnVerFaltantes" class="btn-accion btn-faltantes-nuevo">📋 Sin marcar hoy</button>
+      </div>
+      <div class="acciones-grupo">
+        <span class="acciones-titulo">Gestión</span>
+        <button id="btnGestionUsuarios" class="btn-accion btn-usuarios">👥 Gestionar usuarios</button>
+        <button id="btnGestionAreas" class="btn-accion btn-areas">🏷️ Áreas</button>
+        <button id="btnUsuariosBloqueados" class="btn-accion btn-bloqueados">🔒 Bloqueados</button>
+      </div>
+      <div class="acciones-grupo">
+        <span class="acciones-titulo">Análisis</span>
+        <button id="btnReporteAsistencia" class="btn-accion btn-detalle">📊 Detalle de asistencia</button>
+        <button id="btnEstadisticasUsuario" class="btn-accion btn-stats">📈 Por trabajador</button>
+      </div>
+    </nav>
 
-    <!-- Reportes listos para copiar y pegar en WhatsApp.
-         Un solo botón: dentro están las 6 franjas del día, el resumen de la
-         jornada y el del periodo. Antes eran dos botones sueltos aquí. -->
-    <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
-      <button id="btnReportesWhatsapp" style="background: #128C7E; color: white; border: none; padding: 10px 18px; border-radius: 5px; cursor: pointer; font-weight: bold;">💬 Reportes para WhatsApp</button>
-    </div>
+    <!-- ==========================================================
+         GESTION DE USUARIOS  (oculta hasta que se pide)
+         ========================================================== -->
+    <section id="seccionUsuarios" class="seccion" style="display:none;">
+      <h2>Gestionar usuarios</h2>
+      <p class="ayuda">
+        Quienes se registraron antes del 10/08/2026 tienen el teléfono vacío por un
+        fallo del formulario. Desde aquí se rellenan sin tocar la base de datos.<br>
+        El <strong>horario</strong> se guarda por día de la semana, para quien entra a
+        hora distinta según el día.
+      </p>
+      <div class="subfiltros">
+        <input type="search" id="buscarUsuario" placeholder="Buscar usuario..." autocomplete="off">
+        <label class="check"><input type="checkbox" id="chkSoloSinTelefono"> Solo sin teléfono <span id="contadorSinTelefono" class="pill-aviso">0</span></label>
+        <label class="check"><input type="checkbox" id="chkSoloSinHorario"> Solo sin horario <span id="contadorSinHorario" class="pill-aviso">0</span></label>
+        <label class="check"><input type="checkbox" id="chkIncluirArchivados"> Ver dados de baja</label>
+        <button id="btnRecargarUsuarios" type="button" class="btn-sec">↻ Recargar</button>
+      </div>
+      <div class="tabla-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Correo</th>
+              <th>Teléfono</th>
+              <th>Horario</th>
+              <th>Área</th>
+              <th>Rol</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tablaUsuarios"></tbody>
+        </table>
+      </div>
+    </section>
 
-    <div style="margin-bottom: 30px;">
-      <button id="btnVerFaltantes" class="btn-faltantes">
-        📋 Ver quiénes no han marcado entrada hoy
-      </button>
-      <button id="btnToggleArchivadosEntrada" class="btn-archivados-toggle" style="display:none; margin-left:10px; padding: 10px 15px; border-radius: 5px; border: 1px solid #4caf50; background: transparent; color: #4caf50; cursor: pointer;">
-        👁️ Mostrar Ocultos
-      </button>
-    </div>
-
-    <div id="faltantesContainer" style="display: none;">
+    <!-- ==========================================================
+         SIN MARCAR HOY  (oculta hasta que se pide)
+         ========================================================== -->
+    <section id="faltantesContainer" class="seccion" style="display: none;">
       <h2 id="tituloFaltantes">Faltantes del día</h2>
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Nombre</th>
-            <th>Apellido</th>
-            <th>Correo</th>
-            <th>Teléfono</th>
-            <th>Área</th>
-            <th>Acción</th>
-          </tr>
-        </thead>
-        <tbody id="tablaFaltantes"></tbody>
-      </table>
-    </div>
+      <div class="subfiltros">
+        <button id="btnToggleArchivadosEntrada" type="button" class="btn-sec" style="display:none;">👁️ Mostrar ocultos</button>
+      </div>
+      <div class="tabla-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Apellido</th>
+              <th>Correo</th>
+              <th>Teléfono</th>
+              <th>Área</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="tablaFaltantes"></tbody>
+        </table>
+      </div>
+    </section>
 
-    <h2>Horas contabilizadas</h2>
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Nombre</th>
-          <th>Area</th>
-          <th>Estado</th>
-          <th>Fecha</th>
-          <th>Hora Entrada</th>
-          <th>Hora Salida</th>
-          <th>Horas Totales</th>
-          <th id="thAcciones">Acciones</th>
-        </tr>
-      </thead>
-      <tbody id="tablaHoras"></tbody>
-    </table>
+    <!-- ==========================================================
+         HORAS CONTABILIZADAS
+         Los filtros van JUSTO ENCIMA de su tabla, que es donde se
+         buscan. Por defecto se muestra unicamente el dia de hoy.
+         ========================================================== -->
+    <section class="seccion">
+      <h2>Horas contabilizadas</h2>
 
-    <h2>Puntajes de autoevaluación</h2>
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Nombre</th>
-          <th>Quincena</th>
-          <th>Puntaje total</th>
-          <th>Puesto</th>
-        </tr>
-      </thead>
-      <tbody id="tablaPuntajes"></tbody>
-    </table>
+      <div class="filters" id="filtrosHoras">
+        <div class="rangos-rapidos" role="group" aria-label="Rangos rápidos">
+          <button type="button" class="chip" data-rango="hoy">Hoy</button>
+          <button type="button" class="chip" data-rango="ayer">Ayer</button>
+          <button type="button" class="chip" data-rango="semana">Últimos 7 días</button>
+          <button type="button" class="chip" data-rango="mes">Este mes</button>
+        </div>
+        <input type="search" id="buscarNombre" placeholder="Buscar por persona..." autocomplete="off">
+        <input type="date" id="fechaDesde" title="Desde">
+        <span class="sep">→</span>
+        <input type="date" id="fechaHasta" title="Hasta">
+        <button id="btnFiltrarHoras" type="button">Aplicar</button>
+        <button id="btnLimpiarFiltros" type="button" class="btn-sec" title="Vuelve a mostrar el día de hoy. No borra ningún dato.">Quitar filtros</button>
+        <button id="btnExportarSheets" type="button" class="btn-export-sheets" title="Exporta a Google Sheets lo que muestra la tabla">📊 Exportar</button>
+      </div>
 
-    <div style="margin-top: 40px; margin-bottom: 20px;">
-      <button id="btnVerFaltantesAutoevaluacion" class="btn-faltantes" style="background-color: #673ab7;">
-        📝 Ver quiénes no han realizado autoevaluación hoy
-      </button>
-      <button id="btnToggleArchivadosAutoeval" class="btn-archivados-toggle" style="display:none; margin-left:10px; padding: 10px 15px; border-radius: 5px; border: 1px solid #673ab7; background: transparent; color: #673ab7; cursor: pointer;">
-        👁️ Mostrar Ocultos
-      </button>
-    </div>
+      <p id="resumenHoras" class="resumen-horas"></p>
 
-    <div id="faltantesAutoevaluacionContainer" style="display: none; margin-bottom: 50px;">
-      <h2 id="tituloFaltantesAutoevaluacion">Faltantes de Autoevaluación</h2>
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Nombre</th>
-            <th>Apellido</th>
-            <th>Correo</th>
-            <th>Teléfono</th>
-            <th>Área</th>
-            <th>Acción</th>
-          </tr>
-        </thead>
-        <tbody id="tablaFaltantesAutoevaluacion"></tbody>
-      </table>
-    </div>
+      <div class="tabla-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Área</th>
+              <th>Estado</th>
+              <th>Fecha</th>
+              <th>Entrada</th>
+              <th>Salida</th>
+              <th>Horas</th>
+              <th id="thAcciones">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tablaHoras"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ==========================================================
+         AUTOEVALUACION
+         Zona intacta: cambia de sitio, no de comportamiento.
+         Se revisara en su propia rama.
+         ========================================================== -->
+    <section class="seccion">
+      <h2>Autoevaluación</h2>
+      <div class="subfiltros">
+        <button id="btnFiltrarPuntajes" type="button" class="btn-sec">Filtrar puntajes</button>
+        <button id="btnVerFaltantesAutoevaluacion" type="button" class="btn-sec">📝 Quiénes no la han hecho hoy</button>
+        <button id="btnToggleArchivadosAutoeval" type="button" class="btn-sec" style="display:none;">👁️ Mostrar ocultos</button>
+      </div>
+
+      <div class="tabla-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <!-- Sigue diciendo "Quincena" a proposito: el campo de la base
+                   se llama asi y el renombrado a "periodo" vive en la rama de
+                   autoevaluacion, que no se toca aqui. -->
+              <th>Quincena</th>
+              <th>Puntaje total</th>
+              <th>Puesto</th>
+            </tr>
+          </thead>
+          <tbody id="tablaPuntajes"></tbody>
+        </table>
+      </div>
+
+      <div id="faltantesAutoevaluacionContainer" style="display: none;">
+        <h2 id="tituloFaltantesAutoevaluacion">Faltantes de Autoevaluación</h2>
+        <div class="tabla-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Apellido</th>
+                <th>Correo</th>
+                <th>Teléfono</th>
+                <th>Área</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="tablaFaltantesAutoevaluacion"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   </div>
 
   <!-- MODAL PARA EDITAR HORAS -->

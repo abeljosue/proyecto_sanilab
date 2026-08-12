@@ -132,31 +132,75 @@ function cortePorId(id) {
 }
 
 /**
- * Evalúa una hora de entrada con la regla del minuto.
+ * Diferencia con signo entre dos horas del día, teniendo en cuenta que el día
+ * es circular. Devuelve entre -720 y +720: negativo = antes, positivo = después.
  *
- * `minutosTarde` es cuántos minutos pasó del margen dentro de su hora: marcar
- * a las 09:47 son 32 minutos de exceso sobre los 15 de gracia. NO es la
- * diferencia contra un horario esperado, porque no existe tal horario.
+ * Hace falta para los turnos de noche: quien entra a las 22:00 y marca a las
+ * 00:30 lleva 150 minutos de retraso, no "menos 1290".
  */
-function evaluarEntrada(hora) {
+function diferenciaCircular(minutos, referencia) {
+  let diff = (minutos - referencia + MINUTOS_POR_DIA) % MINUTOS_POR_DIA;
+  if (diff > MINUTOS_POR_DIA / 2) diff -= MINUTOS_POR_DIA;
+  return diff;
+}
+
+/**
+ * ÚNICA FUENTE DE VERDAD DE LA PUNTUALIDAD.
+ *
+ * La llaman por igual el marcado de entrada y los tres reportes, para que la
+ * app y el panel no puedan contradecirse. Funciona en cascada:
+ *
+ *   1. Si la persona TIENE horario para ese día, se compara contra su hora
+ *      de entrada. Es la buena: "llegó tarde" significa tarde de verdad.
+ *   2. Si NO lo tiene, se cae en la regla del minuto (marcar dentro de los
+ *      primeros 15 minutos de cualquier hora). Es un apaño de cuando no
+ *      existían los horarios, y se mantiene solo como respaldo.
+ *
+ * La cascada evita el "big bang": cada horario que se rellena mejora la
+ * precisión de esa persona ese mismo día, incluso en los reportes de días
+ * pasados, sin que haya que cargarlos todos antes de empezar.
+ *
+ * En ambos casos minutosTarde son los minutos transcurridos desde la
+ * referencia (su hora, o el inicio de la hora), y la tardanza se declara al
+ * superar la MISMA tolerancia.
+ *
+ * @param {string}  hora          hora marcada, "HH:mm" o "HH:mm:ss"
+ * @param {string} [horaEsperada] hora de entrada de su horario, si la tiene
+ */
+function evaluarEntrada(hora, horaEsperada) {
   const minutos = aMinutos(hora);
   const corte = corteDeHora(hora);
 
   if (minutos === null) {
-    return { corte: null, estado: null, minutoEntrada: null, minutosTarde: 0, esTardanza: false };
+    return {
+      corte: null, estado: null, minutoEntrada: null,
+      minutosTarde: 0, esTardanza: false, origen: null, horaEsperada: null
+    };
   }
 
-  const minutoEntrada = minutos % 60;
-  const esTardanza = minutoEntrada > TOLERANCIA_MINUTOS;
+  const esperada = aMinutos(horaEsperada);
+  const usaHorario = esperada !== null;
+
+  // Con horario: minutos desde SU hora. Sin horario: minutos desde el inicio
+  // de la hora en la que marcó.
+  const minutosTarde = usaHorario
+    ? Math.max(0, diferenciaCircular(minutos, esperada))
+    : minutos % 60;
+
+  const esTardanza = minutosTarde > TOLERANCIA_MINUTOS;
 
   return {
     corte: corte
       ? { id: corte.id, corte: corte.corte, ventana: etiquetaVentana(corte) }
       : null,
     estado: esTardanza ? ESTADOS.TARDANZA : ESTADOS.PUNTUAL,
-    minutoEntrada,
-    minutosTarde: esTardanza ? minutoEntrada - TOLERANCIA_MINUTOS : 0,
-    esTardanza
+    minutoEntrada: minutos % 60,
+    minutosTarde,
+    esTardanza,
+    // Permite que el panel diga con qué criterio juzgó cada marcación, en vez
+    // de dar un veredicto sin explicar de dónde sale.
+    origen: usaHorario ? 'horario' : 'minuto',
+    horaEsperada: usaHorario ? aTexto(esperada) : null
   };
 }
 
@@ -252,6 +296,7 @@ module.exports = {
   aTexto,
   cortesOrdenados,
   etiquetaVentana,
+  diferenciaCircular,
   corteDeHora,
   cortePorId,
   evaluarEntrada,
