@@ -2,6 +2,7 @@ const RankingQuincenal = require('../models/RankingQuincenal');
 const Autoevaluacion = require('../models/Autoevaluacion');
 const Usuario = require('../models/Usuario');
 const periodos = require('../utils/periodos');
+const rankingService = require('../services/rankingService');
 
 // El campo se llama 'quincena' pero guarda un MES ("2026-08"). El nombre es
 // historico y no se cambia: renombrarlo obligaria a migrar produccion, a la
@@ -138,41 +139,14 @@ exports.recalcularRanking = async (req, res) => {
 
     if (quincena === 'actual' || !esAdmin) quincena = getMesActual();
 
-    if (!/^\d{4}-\d{2}$/.test(quincena)) {
+    if (!rankingService.esClaveValida(quincena)) {
       return res.status(400).json({ error: 'El periodo debe tener el formato YYYY-MM.' });
     }
 
-    await RankingQuincenal.deleteMany({ quincena });
-
-    const usuariosActivos = await Usuario.find({ archivado: { $ne: true } }).select('_id');
-    const idsActivos = usuariosActivos.map(u => u._id);
-
-    const puntajes = await Autoevaluacion.aggregate([
-      { $match: { quincena: quincena, completada: 'SI', usuarioid: { $in: idsActivos } } },
-      {
-        $group: {
-          _id: "$usuarioid",
-          puntajetotal: { $sum: "$puntajetotal" }
-        }
-      },
-      { $sort: { puntajetotal: -1 } }
-    ]);
-
-    const nuevosRankings = puntajes.map((p, index) => {
-      const posicion = index + 1;
-      return {
-        usuarioid: p._id,
-        quincena: quincena,
-        puntajetotal: p.puntajetotal,
-        posicion: posicion,
-        tieneruleta: posicion <= 3,
-        fechacalculo: new Date()
-      };
-    });
-
-    if (nuevosRankings.length > 0) {
-      await RankingQuincenal.insertMany(nuevosRankings);
-    }
+    // El calculo vive en services/rankingService: lo comparten esta ruta, el
+    // panel administrativo y la ruleta. Estaba aqui dentro, y por eso el unico
+    // modo de refrescar el ranking era que un trabajador abriera su pagina.
+    await rankingService.recalcularPeriodo(quincena);
 
     res.json({
       ok: true,
