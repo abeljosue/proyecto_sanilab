@@ -129,8 +129,10 @@ async function cargarDia(fechaHoy, incluirAdmins) {
   // reporte a propósito; se considera únicamente su hora de llegada inicial.
   const validas = asistencias.filter(a => porId.has(String(a.usuarioid)));
 
-  // Horarios de quienes marcaron, para juzgar contra SU hora de entrada.
-  const mapaHorarios = await horarios.cargarHorarios(validas.map(a => a.usuarioid));
+  // Horarios de TODA la plantilla, no solo de quien marcó: hacen falta para dos
+  // cosas distintas. Para juzgar la hora de entrada de quien sí marcó, y para
+  // saber a quién se esperaba hoy y a quién no.
+  const mapaHorarios = await horarios.cargarHorarios(plantilla.map(u => u._id));
 
   return { plantilla, porId, asistencias: validas, mapaHorarios };
 }
@@ -197,12 +199,24 @@ async function generarReporteCorte({ corteId, incluirAdmins = false, ahora: mome
   tardanzas.sort((x, y) => x.hora.localeCompare(y.hora));
 
   const idsQueMarcaron = new Set(asistencias.map(a => String(a.usuarioid)));
-  const sinMarcar = plantilla
+
+  // QUIEN LIBRA HOY NO ES UN FALTANTE. Manda el horario de cada persona; la
+  // lista global de días laborables solo cubre a quien no lo tiene cargado.
+  // Antes se reclamaba a todo el mundo de lunes a sábado, así que a quien
+  // libra entre semana se le listaba como ausente en su día libre.
+  const esperados = plantilla.filter(
+    u => turnos.esDiaLaborable(ahora, horarios.diasDe(mapaHorarios, u._id))
+  );
+
+  const sinMarcar = esperados
     .filter(u => !idsQueMarcaron.has(String(u._id)))
     .map(u => ({ nombre: nombreCompleto(u), area: areaDe(u), telefono: telefonoDe(u) }));
 
-  const esLaborable = turnos.esDiaLaborable(ahora);
-  const estadoSinMarcar = turnos.estadoSinMarcar(ahora, ahora);
+  // Ya solo quedan personas a las que se esperaba, así que el estado depende
+  // únicamente de la hora.
+  const estadoSinMarcar = turnos.pasoHoraDeCorte(ahora)
+    ? turnos.ESTADOS.AUSENTE
+    : turnos.ESTADOS.PENDIENTE;
 
   const cabecera = [
     '📋 *CHECKLIST SANILAB*',
@@ -248,10 +262,10 @@ async function generarReporteCorte({ corteId, incluirAdmins = false, ahora: mome
 
   // ---------- Bloque de quienes no han marcado ----------
   const s = [];
-  if (esLaborable && sinMarcar.length > 0) {
+  if (sinMarcar.length > 0) {
     const titulo = estadoSinMarcar === turnos.ESTADOS.AUSENTE ? '🔴 *SIN MARCAR (ausentes)*' : '⏳ *AÚN NO MARCAN*';
     s.push(...cabecera, '');
-    s.push(`${titulo} — ${sinMarcar.length} de ${totalPlantilla}`);
+    s.push(`${titulo} — ${sinMarcar.length} de ${esperados.length} esperados hoy`);
     listar(sinMarcar.map(u => `• ${u.nombre} · ${u.area} · ${u.telefono}`)).forEach(x => s.push(x));
   }
 
@@ -272,7 +286,8 @@ async function generarReporteCorte({ corteId, incluirAdmins = false, ahora: mome
       tardanzas: tardanzas.length,
       marcaronHoy: idsQueMarcaron.size,
       sinMarcar: sinMarcar.length,
-      esDiaLaborable: esLaborable,
+      esperadosHoy: esperados.length,
+      libranHoy: totalPlantilla - esperados.length,
       estadoSinMarcar
     }
   };
@@ -322,12 +337,19 @@ async function generarReporteDelDia({ incluirAdmins = false, ahora: momento } = 
 
   tardanzas.sort((x, y) => x.hora.localeCompare(y.hora));
 
-  const sinMarcar = plantilla
+  // Mismo criterio que en el reporte por corte: se espera a quien lo diga su
+  // horario, y la lista global solo cubre a quien no lo tiene.
+  const esperados = plantilla.filter(
+    u => turnos.esDiaLaborable(ahora, horarios.diasDe(mapaHorarios, u._id))
+  );
+
+  const sinMarcar = esperados
     .filter(u => !idsQueMarcaron.has(String(u._id)))
     .map(u => ({ nombre: nombreCompleto(u), area: areaDe(u) }));
 
-  const estadoSinMarcar = turnos.estadoSinMarcar(ahora, ahora);
-  const esLaborable = turnos.esDiaLaborable(ahora);
+  const estadoSinMarcar = turnos.pasoHoraDeCorte(ahora)
+    ? turnos.ESTADOS.AUSENTE
+    : turnos.ESTADOS.PENDIENTE;
 
   // Autoevaluación: el cupo es SEMANAL (2 por semana), no una al día.
   //
@@ -362,20 +384,24 @@ async function generarReporteDelDia({ incluirAdmins = false, ahora: momento } = 
   l.push(`${fechaLarga(ahora)} · ${hhmm(ahora)} h`);
   l.push('_Resumen de la jornada completa_');
 
-  if (!esLaborable) {
+  if (esperados.length === 0) {
     l.push('');
-    l.push('_Hoy es día no laborable: no se contabilizan ausencias._');
+    l.push('_Hoy no se espera a nadie según los horarios cargados._');
   }
 
   l.push('');
-  l.push(`*ASISTENCIA* — ${idsQueMarcaron.size} de ${totalPlantilla}`);
+  l.push(`*ASISTENCIA* — ${idsQueMarcaron.size} de ${esperados.length} esperados hoy`);
   l.push(`🟢 Puntuales: ${puntuales.length}   🟡 Tardanzas: ${tardanzas.length}`);
 
-  // En día no laborable no se cuenta a nadie como faltante: mostrar el contador
-  // contradiría el aviso de arriba.
-  if (esLaborable) {
+  if (esperados.length > 0) {
     const etiquetaFaltantes = estadoSinMarcar === turnos.ESTADOS.AUSENTE ? '🔴 Ausentes' : '⏳ Sin marcar';
     l.push(`${etiquetaFaltantes}: ${sinMarcar.length}`);
+  }
+
+  // Se dice cuántos libran, para que no parezca que faltan personas del
+  // recuento. Antes esto se resolvía con un aviso global de 'día no laborable'.
+  if (totalPlantilla - esperados.length > 0) {
+    l.push(`⬜ Libran hoy: ${totalPlantilla - esperados.length}`);
   }
 
   if (tardanzas.length > 0) {
@@ -384,14 +410,14 @@ async function generarReporteDelDia({ incluirAdmins = false, ahora: momento } = 
     listar(tardanzas.map(t => `• ${t.nombre} · ${t.hora} · ${t.telefono}`)).forEach(x => l.push(x));
   }
 
-  if (sinMarcar.length > 0 && esLaborable) {
+  if (sinMarcar.length > 0) {
     l.push('');
     l.push(`${estadoSinMarcar === turnos.ESTADOS.AUSENTE ? '🔴 *Ausentes*' : '⏳ *Sin marcar*'}`);
     listar(sinMarcar.map(u => `• ${u.nombre} _(${u.area})_`)).forEach(x => l.push(x));
   }
 
   l.push('');
-  l.push(`📝 *AUTOEVALUACIÓN DE LA SEMANA* — ${totalEvaluaron} de ${totalPlantilla}`);
+  l.push(`📝 *AUTOEVALUACIÓN DE LA SEMANA* — ${totalEvaluaron} de ${totalPlantilla} al día`);
   l.push(`_${fechaCorta(semana.inicio)} al ${fechaCorta(semana.fin)} · ${objetivoSemanal} por persona_`);
 
   if (sinAutoevaluar.length > 0) {
@@ -413,7 +439,8 @@ async function generarReporteDelDia({ incluirAdmins = false, ahora: momento } = 
       tardanzas: tardanzas.length,
       sinMarcar: sinMarcar.length,
       estadoSinMarcar,
-      esDiaLaborable: esLaborable,
+      esperadosHoy: esperados.length,
+      libranHoy: totalPlantilla - esperados.length,
       // La autoevaluación se mide por semana, no por día: el nombre del campo
       // lo dice para que nadie lo lea como "hoy".
       semanaAutoevaluacion: `${fechaCorta(semana.inicio)}–${fechaCorta(semana.fin)}`,

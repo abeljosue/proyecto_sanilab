@@ -57,7 +57,58 @@ function horaEsperada(mapa, usuarioId, fecha) {
   return mapa.get(`${usuarioId}|${diaSemana}`) || null;
 }
 
+/**
+ * Índice usuario -> días de la semana en que tiene horario.
+ *
+ * Se construye una sola vez por mapa y se guarda pegado a él, porque los
+ * reportes preguntan por las 22 personas seguidas y reconstruirlo cada vez
+ * sería recorrer las claves 22 veces para nada. La propiedad va como no
+ * enumerable para que el mapa siga comportándose como un Map normal.
+ */
+function indicePorUsuario(mapa) {
+  if (!mapa) return new Map();
+
+  if (!mapa.__diasPorUsuario) {
+    const indice = new Map();
+
+    for (const clave of mapa.keys()) {
+      const separador = clave.lastIndexOf('|');
+      const id = clave.slice(0, separador);
+      const dia = Number(clave.slice(separador + 1));
+
+      if (!indice.has(id)) indice.set(id, new Set());
+      indice.get(id).add(dia);
+    }
+
+    Object.defineProperty(mapa, '__diasPorUsuario', { value: indice, enumerable: false });
+  }
+
+  return mapa.__diasPorUsuario;
+}
+
+/**
+ * Días de la semana en que se espera a alguien, según su horario.
+ *
+ * Devuelve null si esa persona NO tiene ninguna fila cargada, que es la señal
+ * para que `turnos.esDiaLaborable` se caiga al respaldo global.
+ *
+ * OJO: solo sabe de los usuarios que se pidieron al construir el mapa. Si se
+ * consulta por alguien que no estaba en la lista, dirá que no tiene horario.
+ */
+function diasDe(mapa, usuarioId) {
+  if (!mapa || !usuarioId) return null;
+  return indicePorUsuario(mapa).get(String(usuarioId)) || null;
+}
+
+/** ¿Tiene horario cargado, aunque sea de un solo día? */
+function tieneHorario(mapa, usuarioId) {
+  const dias = diasDe(mapa, usuarioId);
+  return !!dias && dias.size > 0;
+}
+
 module.exports = {
   cargarHorarios,
-  horaEsperada
+  horaEsperada,
+  diasDe,
+  tieneHorario
 };
