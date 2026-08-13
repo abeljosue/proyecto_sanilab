@@ -38,9 +38,12 @@ exports.getAllRankings = async (req, res) => {
       .sort({ posicion: 1 })
       .populate({
         path: 'usuarioid',
-        select: 'nombre apellido archivado fondo_perfil',
-        match: { archivado: { $ne: true } }
-      }); 
+        // Las cuentas ADMIN no compiten: ver services/rankingService. El filtro
+        // se repite aquí como red por si quedaran filas de antes del cambio,
+        // que se irán al primer recálculo.
+        select: 'nombre apellido archivado rol fondo_perfil',
+        match: { archivado: { $ne: true }, rol: { $ne: 'ADMIN' } }
+      });
 
     const userRole = req.user?.rol || 'USER';
     

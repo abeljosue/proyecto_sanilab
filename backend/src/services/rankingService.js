@@ -57,7 +57,16 @@ async function recalcularPeriodo(clave) {
     throw error;
   }
 
-  const activos = await Usuario.find({ archivado: { $ne: true } }).select('_id');
+  // Fuera los archivados Y las cuentas ADMIN.
+  //
+  // Los admins son dos cuentas compartidas (sistemas y gerencia) que usan
+  // varias personas a la vez: su puntaje es la suma de gente distinta y no
+  // representa a nadie. Compitiendo contra el equipo, desplazaban del top 3 a
+  // trabajadores reales. Siguen pudiendo autoevaluarse; solo no puntúan.
+  const activos = await Usuario.find({
+    archivado: { $ne: true },
+    rol: { $ne: 'ADMIN' }
+  }).select('_id');
   const idsActivos = activos.map(u => u._id);
 
   const puntajes = await Autoevaluacion.aggregate([
