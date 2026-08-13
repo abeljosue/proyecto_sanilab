@@ -240,39 +240,151 @@ async function marcarEntrada() {
   await enviarAccion('/api/asistencias/entrada', {}, 'Entrada/Reanudación exitosa');
 }
 
-async function marcarSalida(tipo) {
-  // Si el usuario quiere terminar definitivamente, levantamos las alarmas
-  if (tipo === 'fin') {
-    Swal.fire({
-      title: '¿Terminar Jornada?',
-      text: "Una vez finalizada, el reloj se detendrá y no podrás registrar más pausas ni volver a entrar por el resto del día.",
+/** "3 h 20 min" a partir de un número de minutos. */
+function textoDuracion(minutos) {
+  const h = Math.floor(minutos / 60);
+  const m = minutos % 60;
+  if (h === 0) return `${m} min`;
+  if (m === 0) return `${h} h`;
+  return `${h} h ${m} min`;
+}
+
+/**
+ * Minutos que faltan para la hora de salida del horario de hoy, o null si esa
+ * persona no tiene horario cargado.
+ *
+ * Contempla los turnos que cruzan medianoche: si son las 22:00 y la salida son
+ * las 00:00, faltan 120 minutos, no menos 1320.
+ */
+function minutosHastaSalidaPrevista() {
+  const horario = currentAsistencia && currentAsistencia.horarioHoy;
+  if (!horario || !horario.salida) return null;
+
+  const partes = String(horario.salida).split(':');
+  const minutosSalida = (parseInt(partes[0], 10) || 0) * 60 + (parseInt(partes[1], 10) || 0);
+
+  const ahora = new Date();
+  const minutosAhora = ahora.getHours() * 60 + ahora.getMinutes();
+
+  let faltan = minutosSalida - minutosAhora;
+  if (faltan < -720) faltan += 1440;
+  return faltan;
+}
+
+/**
+ * El aviso de terminar jornada.
+ *
+ * SALE SIEMPRE, porque terminar es irreversible: desde la app no hay forma de
+ * volver a abrir el día. Lo que cambia según el caso es CUÁNTO insiste.
+ *
+ * El caso que motivó esto: quien tiene horario partido (por ejemplo 09:00 a
+ * 14:00 y de 20:00 a 23:00) llega a las 14:00 y, desde su punto de vista,
+ * "terminó". Los dos botones están uno al lado del otro y 'Terminar Jornada'
+ * describe justo lo que siente que hace. Si se equivoca, pierde su segundo
+ * tramo entero sin ningún aviso. Ahora, si todavía le queda turno por delante,
+ * el aviso se lo dice con su hora concreta y le ofrece Pausar ahí mismo.
+ */
+function avisoDeTerminar() {
+  const trabajado = (currentAsistencia && currentAsistencia.horatotal) || '00:00:00';
+  const horario = currentAsistencia && currentAsistencia.horarioHoy;
+  const gracia = (currentAsistencia && currentAsistencia.minutosGraciaCierre) || 30;
+
+  const faltan = minutosHastaSalidaPrevista();
+
+  // Se avisa fuerte solo si de verdad le queda turno: el mismo margen de
+  // cortesía que usa el cierre automático del servidor, para que la app y el
+  // servidor no se contradigan.
+  const leQuedaTurno = faltan !== null && faltan > gracia;
+
+  const lineaTrabajado = `<p style="font-size:15px; margin:6px 0;">Llevas trabajado hoy: <strong>${trabajado}</strong></p>`;
+
+  if (leQuedaTurno) {
+    return {
       icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#e11d48', // Un rojo peligro
-      cancelButtonColor: '#6b7280',  // Gris neutral
-      confirmButtonText: 'Sí, finalizar hoy',
+      title: '¿No querías Pausar?',
+      html: `
+        <p style="font-size:16px; margin-bottom:4px;">
+          Tu horario de hoy termina a las <strong>${horario.salida}</strong>
+          y todavía faltan <strong>${textoDuracion(faltan)}</strong>.
+        </p>
+        ${lineaTrabajado}
+        <div style="text-align:left; background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:10px 12px; margin-top:12px; font-size:14px; color:#7c2d12;">
+          <strong>Pausar</strong> detiene el reloj y te deja volver más tarde.<br>
+          <strong>Terminar</strong> cierra el día: no podrás volver a marcar.
+        </div>
+      `,
+      showDenyButton: true,
+      confirmButtonText: 'Aun así, terminar',
+      denyButtonText: 'Mejor pausar',
       cancelButtonText: 'Cancelar'
-    }).then(async (result) => {
-      // Solo si el usuario hace clic afirmativo afirmativo:
-      if (result.isConfirmed) {
-        // ANTI DOBLE CLIC: Mostrar cargando y bloquear pantalla temporalmente
-        Swal.fire({
-          title: 'Registrando salida...',
-          allowOutsideClick: false,
-          didOpen: () => {
-            Swal.showLoading()
-          }
-        });
+    };
+  }
 
-        await enviarAccion('/api/asistencias/salida', { tipo }, 'Jornada finalizada exitosamente');
+  const cerroSuTurno = faltan !== null
+    ? `<p style="font-size:14px; color:#666; margin:6px 0;">Tu horario de hoy terminaba a las <strong>${horario.salida}</strong>.</p>`
+    : '';
 
-        // El sweetalert de carga se cerrará automáticamente al llegar el nuevo toast desde enviarAccion
-        Swal.close();
+  return {
+    icon: 'question',
+    title: '¿Terminar jornada?',
+    html: `
+      ${lineaTrabajado}
+      ${cerroSuTurno}
+      <p style="font-size:14px; color:#666; margin-top:10px;">
+        El reloj se detiene y no podrás volver a marcar por el resto del día.
+      </p>
+    `,
+    showDenyButton: false,
+    confirmButtonText: 'Sí, terminar',
+    denyButtonText: '',
+    cancelButtonText: 'Cancelar'
+  };
+}
+
+async function marcarSalida(tipo) {
+  // Terminar es irreversible, así que siempre se pregunta. El contenido del
+  // aviso lo arma avisoDeTerminar() según el horario de la persona.
+  if (tipo === 'fin') {
+    const aviso = avisoDeTerminar();
+
+    const result = await Swal.fire({
+      title: aviso.title,
+      html: aviso.html,
+      icon: aviso.icon,
+      showCancelButton: true,
+      showDenyButton: aviso.showDenyButton,
+      confirmButtonColor: '#e11d48', // Un rojo peligro
+      denyButtonColor: '#f59e0b',    // Ámbar: es la salida recomendada
+      cancelButtonColor: '#6b7280',  // Gris neutral
+      confirmButtonText: aviso.confirmButtonText,
+      denyButtonText: aviso.denyButtonText,
+      cancelButtonText: aviso.cancelButtonText,
+      reverseButtons: true
+    });
+
+    // Se le ofrece pausar dentro del propio aviso: si el descuido era ese, la
+    // acción correcta está a un clic y no hay que cerrar y volver a buscarla.
+    if (result.isDenied) {
+      await marcarSalida('pausa');
+      return;
+    }
+
+    if (!result.isConfirmed) return;
+
+    // ANTI DOBLE CLIC: Mostrar cargando y bloquear pantalla temporalmente
+    Swal.fire({
+      title: 'Registrando salida...',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading()
       }
     });
+
+    await enviarAccion('/api/asistencias/salida', { tipo }, 'Jornada finalizada exitosamente');
+
+    // El sweetalert de carga se cerrará automáticamente al llegar el nuevo toast desde enviarAccion
+    Swal.close();
   } else {
-
-
     // Si solo es una pausa ('pausa'), lo dejamos pasar directo sin molestar
     await enviarAccion('/api/asistencias/salida', { tipo }, 'Pausa registrada');
   }
