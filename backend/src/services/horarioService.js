@@ -15,9 +15,15 @@ const HorarioTrabajador = require('../models/HorarioTrabajador');
 /**
  * Índice de horarios listo para consultar.
  *
+ * El valor de cada entrada es { entrada, salida }.
+ *
+ * Antes solo se guardaba la hora de ENTRADA, porque era lo unico que se usaba
+ * (para la tardanza). La salida hacia falta al pasar el auto-cierre a respetar
+ * el horario: llevaba desde siempre guardada en la base y sin usarse.
+ *
  * @param {Array} usuarioIds  ids de las personas implicadas. Si se omite, se
  *                            cargan todos los horarios configurados.
- * @returns {Map} clave "usuarioId|diaSemana" -> "HH:mm" de entrada
+ * @returns {Map} clave "usuarioId|diaSemana" -> { entrada, salida }
  */
 async function cargarHorarios(usuarioIds) {
   const filtro = { activo: true };
@@ -29,10 +35,13 @@ async function cargarHorarios(usuarioIds) {
   }
 
   const filas = await HorarioTrabajador.find(filtro)
-    .select('usuario_id dia_semana hora_entrada_esperada');
+    .select('usuario_id dia_semana hora_entrada_esperada hora_salida_esperada');
 
   return new Map(
-    filas.map(f => [`${f.usuario_id}|${f.dia_semana}`, f.hora_entrada_esperada])
+    filas.map(f => [
+      `${f.usuario_id}|${f.dia_semana}`,
+      { entrada: f.hora_entrada_esperada, salida: f.hora_salida_esperada }
+    ])
   );
 }
 
@@ -44,7 +53,7 @@ async function cargarHorarios(usuarioIds) {
  * @param {*}      usuarioId
  * @param {Date}   fecha      día de la marcación
  */
-function horaEsperada(mapa, usuarioId, fecha) {
+function filaDe(mapa, usuarioId, fecha) {
   if (!mapa || !usuarioId || !fecha) return null;
 
   const d = fecha instanceof Date ? fecha : new Date(fecha);
@@ -57,7 +66,76 @@ function horaEsperada(mapa, usuarioId, fecha) {
   return mapa.get(`${usuarioId}|${diaSemana}`) || null;
 }
 
+function horaEsperada(mapa, usuarioId, fecha) {
+  const fila = filaDe(mapa, usuarioId, fecha);
+  return fila ? (fila.entrada || null) : null;
+}
+
+/**
+ * Hora a la que se esperaba que alguien TERMINARA ese día, o null.
+ *
+ * La usa el auto-cierre para cerrar la jornada poco después de su salida en
+ * vez de a las 12 horas a ojo. Este campo llevaba desde el principio guardado
+ * en la base sin que ninguna lógica lo leyera.
+ */
+function horaSalidaEsperada(mapa, usuarioId, fecha) {
+  const fila = filaDe(mapa, usuarioId, fecha);
+  return fila ? (fila.salida || null) : null;
+}
+
+/**
+ * Índice usuario -> días de la semana en que tiene horario.
+ *
+ * Se construye una sola vez por mapa y se guarda pegado a él, porque los
+ * reportes preguntan por las 22 personas seguidas y reconstruirlo cada vez
+ * sería recorrer las claves 22 veces para nada. La propiedad va como no
+ * enumerable para que el mapa siga comportándose como un Map normal.
+ */
+function indicePorUsuario(mapa) {
+  if (!mapa) return new Map();
+
+  if (!mapa.__diasPorUsuario) {
+    const indice = new Map();
+
+    for (const clave of mapa.keys()) {
+      const separador = clave.lastIndexOf('|');
+      const id = clave.slice(0, separador);
+      const dia = Number(clave.slice(separador + 1));
+
+      if (!indice.has(id)) indice.set(id, new Set());
+      indice.get(id).add(dia);
+    }
+
+    Object.defineProperty(mapa, '__diasPorUsuario', { value: indice, enumerable: false });
+  }
+
+  return mapa.__diasPorUsuario;
+}
+
+/**
+ * Días de la semana en que se espera a alguien, según su horario.
+ *
+ * Devuelve null si esa persona NO tiene ninguna fila cargada, que es la señal
+ * para que `turnos.esDiaLaborable` se caiga al respaldo global.
+ *
+ * OJO: solo sabe de los usuarios que se pidieron al construir el mapa. Si se
+ * consulta por alguien que no estaba en la lista, dirá que no tiene horario.
+ */
+function diasDe(mapa, usuarioId) {
+  if (!mapa || !usuarioId) return null;
+  return indicePorUsuario(mapa).get(String(usuarioId)) || null;
+}
+
+/** ¿Tiene horario cargado, aunque sea de un solo día? */
+function tieneHorario(mapa, usuarioId) {
+  const dias = diasDe(mapa, usuarioId);
+  return !!dias && dias.size > 0;
+}
+
 module.exports = {
   cargarHorarios,
-  horaEsperada
+  horaEsperada,
+  horaSalidaEsperada,
+  diasDe,
+  tieneHorario
 };

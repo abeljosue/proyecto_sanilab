@@ -25,8 +25,11 @@ const autoevaluacionSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // OJO: guarda un MES en formato "YYYY-MM", no una quincena. Es la clave con
+  // la que el ranking agrupa los puntajes. El nombre es historico; renombrarlo
+  // exigiria migrar produccion. Ver utils/periodos.js.
   quincena: {
-    type: String, // Ej: "1-2024" o similar
+    type: String,
     required: true
   },
   mensajemotivacional: {

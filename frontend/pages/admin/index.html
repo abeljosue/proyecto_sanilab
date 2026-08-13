@@ -148,51 +148,41 @@
 
     <!-- ==========================================================
          AUTOEVALUACION
-         Zona intacta: cambia de sitio, no de comportamiento.
-         Se revisara en su propia rama.
+         Una sola vista, filtrada por mes. Antes eran dos tablas que
+         median cosas distintas: una mezclaba todos los periodos y la
+         otra contaba "quien no la hizo hoy", que con el cupo de dos
+         por semana ya no significaba nada.
          ========================================================== -->
     <section class="seccion">
       <h2>Autoevaluación</h2>
-      <div class="subfiltros">
-        <button id="btnFiltrarPuntajes" type="button" class="btn-sec">Filtrar puntajes</button>
-        <button id="btnVerFaltantesAutoevaluacion" type="button" class="btn-sec">📝 Quiénes no la han hecho hoy</button>
-        <button id="btnToggleArchivadosAutoeval" type="button" class="btn-sec" style="display:none;">👁️ Mostrar ocultos</button>
+
+      <div class="filters" id="filtrosAutoeval">
+        <select id="selMesAutoeval" title="Mes que se está mirando"></select>
+        <div class="rangos-rapidos" role="group" aria-label="Filtrar personas">
+          <button type="button" class="chip activo" data-autoeval="todos">Todos</button>
+          <button type="button" class="chip" data-autoeval="hicieron">Hicieron</button>
+          <button type="button" class="chip" data-autoeval="no">Sin ninguna</button>
+        </div>
+        <input type="search" id="buscarAutoeval" placeholder="Buscar por persona..." autocomplete="off">
+        <button id="btnToggleArchivadosAutoeval" type="button" class="btn-sec" title="Ver a quienes están dados de baja">👁️ Mostrar ocultos</button>
       </div>
+
+      <p id="resumenAutoeval" class="resumen-horas"></p>
 
       <div class="tabla-scroll">
         <table class="table">
           <thead>
             <tr>
-              <th>Nombre</th>
-              <!-- Sigue diciendo "Quincena" a proposito: el campo de la base
-                   se llama asi y el renombrado a "periodo" vive en la rama de
-                   autoevaluacion, que no se toca aqui. -->
-              <th>Quincena</th>
-              <th>Puntaje total</th>
               <th>Puesto</th>
+              <th>Nombre</th>
+              <th>Área</th>
+              <th title="Autoevaluaciones completadas en el mes elegido">Del mes</th>
+              <th>Puntaje</th>
+              <th id="thSemanaAutoeval" title="Avance de la semana en curso">Esta semana</th>
             </tr>
           </thead>
           <tbody id="tablaPuntajes"></tbody>
         </table>
-      </div>
-
-      <div id="faltantesAutoevaluacionContainer" style="display: none;">
-        <h2 id="tituloFaltantesAutoevaluacion">Faltantes de Autoevaluación</h2>
-        <div class="tabla-scroll">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Nombre</th>
-                <th>Apellido</th>
-                <th>Correo</th>
-                <th>Teléfono</th>
-                <th>Área</th>
-                <th>Acción</th>
-              </tr>
-            </thead>
-            <tbody id="tablaFaltantesAutoevaluacion"></tbody>
-          </table>
-        </div>
       </div>
     </section>
   </div>

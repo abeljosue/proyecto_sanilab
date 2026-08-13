@@ -91,15 +91,18 @@
           let icono = 'warning';
           let titulo = '🔒 Ruleta Bloqueada';
 
-          if (estado.tipo === 'dia_no_permitido') {
+          if (estado.tipo === 'ventana_cerrada') {
             icono = 'info';
-            titulo = '📅 Aún no es día de ruleta';
+            titulo = '📅 La ruleta se abre al cerrar el mes';
           } else if (estado.tipo === 'fuera_top3') {
             icono = 'warning';
             titulo = '🏆 Sigue esforzándote';
           } else if (estado.tipo === 'ya_giro') {
             icono = 'success';
-            titulo = '🎉 Ya reclamaste tu premio';
+            titulo = '🎉 Ya reclamaste este premio';
+          } else if (estado.tipo === 'cupo_agotado') {
+            icono = 'info';
+            titulo = '🎁 Los premios ya se entregaron';
           }
 
           await Swal.fire({
@@ -170,7 +173,15 @@
       const div = document.getElementById('resultadoRuleta');
       div.textContent = '🎉 Te tocó: ' + premio + ' 🎉';
 
-      // Guardar el giro en la base de datos
+      // Guardar el giro en la base de datos.
+      //
+      // Antes el error se tragaba en el console.log y la persona veía su premio
+      // igualmente, aunque el servidor lo hubiera rechazado y no quedara
+      // registrado en ningún sitio. Con la ruleta rota por el fallo de días eso
+      // pasaba TODOS los sábados. Ahora, si no se guarda, se dice.
+      let guardado = false;
+      let errorGuardado = '';
+
       try {
         await axios.post(`${API_BASE_URL}/api/ruleta/girar`, {
           premio: premio
@@ -180,9 +191,28 @@
             Authorization: `Bearer ${token}`
           }
         });
+        guardado = true;
         console.log('✅ Giro registrado en BD:', premio);
       } catch (err) {
+        errorGuardado = err.response?.data?.error || 'No pudimos guardar tu giro.';
         console.error('Error al registrar giro:', err);
+      }
+
+      if (!guardado) {
+        div.textContent = '';
+        await Swal.fire({
+          icon: 'error',
+          title: 'No se pudo registrar tu giro',
+          html: `
+            <p style="font-size:16px;">${errorGuardado}</p>
+            <p style="font-size:14px; color:#888; margin-top:10px;">Avisa al área de Sistemas antes de volver a intentarlo.</p>
+          `,
+          confirmButtonText: 'Volver al inicio',
+          confirmButtonColor: '#4CAF50',
+          allowOutsideClick: false
+        });
+        window.location.href = '/pages/home/index.html';
+        return;
       }
 
       // Mostrar SweetAlert con el premio
@@ -227,8 +257,8 @@
           icon: 'question',
           title: '🎰 ¿Listo para girar?',
           html: `
-            <p style="font-size:16px;">Solo tienes <strong>1 intento</strong> esta semana.</p>
-            <p style="font-size:14px; color:#888; margin-top:8px;">Una vez que gires, no podrás volver a intentarlo hasta el próximo sábado.</p>
+            <p style="font-size:16px;">Solo tienes <strong>1 intento</strong> por cada mes que ganes.</p>
+            <p style="font-size:14px; color:#888; margin-top:8px;">Una vez que gires, tendrás que volver a quedar entre los 3 primeros del mes siguiente.</p>
           `,
           showCancelButton: true,
           confirmButtonText: '¡Girar ahora! 🎉',

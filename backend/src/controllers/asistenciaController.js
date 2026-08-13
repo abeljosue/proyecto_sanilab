@@ -2,6 +2,7 @@ const Asistencia = require('../models/Asistencia');
 const HorarioTrabajador = require('../models/HorarioTrabajador');
 const { getFechaHoyMidnight, getLocalDate } = require('../utils/dateUtils');
 const turnos = require('../utils/turnos');
+const horarios = require('../services/horarioService');
 
 // ========== LÍMITES DEL CIERRE AUTOMÁTICO ==========
 // Cuando alguien se deja la jornada abierta, el sistema la cierra por él y le
@@ -24,6 +25,23 @@ const HORA_CORTE_NOCTURNO = 7;
 // A partir de esta hora de entrada, la jornada se considera nocturna.
 const HORA_INICIO_NOCTURNO = 18;
 
+// Margen que se le da a quien SI tiene horario antes de cerrarle la jornada.
+//
+// La idea es no molestar: se le deja media hora de cortesia despues de su hora
+// de salida para que marque el mismo. Si no lo hace, el sistema cierra por el,
+// pero con una cifra que se parece a la realidad en vez de las 12 horas a ojo.
+const MINUTOS_GRACIA_CIERRE = 30;
+
+// Tope de seguridad para el limite calculado desde el horario.
+//
+// El bloque mas largo de la plantilla es 09:00-23:00 (14 horas, horario
+// partido declarado como un solo bloque). Cualquier cosa por encima de 16 no
+// es un horario real: significa que el tramo se abrio FUERA de su horario
+// (por ejemplo entrar a las 16:00 con salida prevista a las 14:00), y en ese
+// caso la diferencia hacia adelante da la vuelta al reloj y sale absurda.
+// Cuando pasa, se cae al limite plano.
+const HORAS_TOPE_CON_HORARIO = 16;
+
 /**
  * Horas que se le asignan a una jornada que hubo que cerrar automáticamente.
  * Las nocturnas se recortan para que no invadan la mañana siguiente.
@@ -35,6 +53,42 @@ function limiteHorasJornada(horaEntrada) {
     return Math.min(HORAS_MAXIMAS_JORNADA, horasHasta7AM);
   }
   return HORAS_MAXIMAS_JORNADA;
+}
+
+/**
+ * Cuantas horas puede estar abierto un tramo antes de que el sistema lo cierre.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ *  1. Si la persona TIENE horario ese dia -> su hora de salida + 30 min
+ *  2. Si NO lo tiene                      -> el limite plano de 12 horas
+ * ─────────────────────────────────────────────────────────────────────────
+ *
+ * Misma cascada que la tardanza y que los dias laborables. Lo que cambia es la
+ * calidad de la estimacion: antes, a Christian (09:00-14:00 y 20:00-23:00) que
+ * se olvidaba de marcar salida se le asignaban 11 horas por el tramo de noche
+ * y el dia acababa con 16 horas cuando lo real eran 8. Con su horario, el
+ * tramo se cierra a las 23:30 y el dia queda en 8 horas.
+ *
+ * @param {string}  horaEntradaTramo  hora a la que se abrio el tramo
+ * @param {string} [salidaEsperada]   su hora de salida ese dia, si la tiene
+ */
+function limiteDeCierre(horaEntradaTramo, salidaEsperada) {
+  const minSalida = turnos.aMinutos(salidaEsperada);
+  const minEntrada = turnos.aMinutos(horaEntradaTramo);
+
+  if (minSalida !== null && minEntrada !== null) {
+    // Diferencia HACIA ADELANTE, no circular. `turnos.diferenciaCircular`
+    // asume que la distancia cabe en 12 horas y aqui no: un bloque puede durar
+    // 14 (09:00 a 23:00), y la version circular lo leeria como -9,5 horas.
+    const minutos = ((minSalida + MINUTOS_GRACIA_CIERRE) - minEntrada + 1440) % 1440;
+    const horas = minutos / 60;
+
+    if (horas > 0 && horas <= HORAS_TOPE_CON_HORARIO) {
+      return { limiteHoras: horas, origen: 'horario' };
+    }
+  }
+
+  return { limiteHoras: limiteHorasJornada(horaEntradaTramo), origen: 'respaldo' };
 }
 
 /** "08:00:00" + N horas -> "20:00:00", dando la vuelta a medianoche si hace falta. */
@@ -162,12 +216,12 @@ function horasAbierto(apertura, ahoraReal, ahoraLocal) {
  * la persona llevara acumulado: quien habia trabajado 5 horas y se dejo el
  * segundo tramo abierto acababa con 12.
  *
- * El limite se calcula sobre la hora de entrada del TRAMO, no la del dia, asi
- * que un segundo tramo que empieza a las 20:00 se corta a las 07:00 como
- * cualquier turno de noche.
+ * El limite lo decide `limiteDeCierre`: la hora de salida del horario mas 30
+ * minutos si la persona lo tiene, y si no el limite plano sobre la hora de
+ * entrada del TRAMO (no la del dia), que corta los turnos de noche a las 07:00.
  */
-function aplicarCierreAutomatico(asistencia, apertura) {
-  const limiteHoras = limiteHorasJornada(apertura.horaEntrada);
+function aplicarCierreAutomatico(asistencia, apertura, salidaEsperada) {
+  const { limiteHoras, origen } = limiteDeCierre(apertura.horaEntrada, salidaEsperada);
   const horaSalidaGenerada = horaSalidaTrasLimite(apertura.horaEntrada, limiteHoras);
 
   if (apertura.tramo) {
@@ -183,7 +237,7 @@ function aplicarCierreAutomatico(asistencia, apertura) {
   asistencia.estado = 'Jornada terminada';
   asistencia.cierre_automatico = true;
 
-  return { limiteHoras, horaSalidaGenerada };
+  return { limiteHoras, horaSalidaGenerada, origen };
 }
 
 // ========== 🆕 VALIDACIÓN DE DIFERENCIA HORARIA (ELIMINADA - ya no hay restricción) ==========
@@ -259,10 +313,24 @@ exports.marcarEntrada = async (req, res) => {
       const apertura = aperturaPendiente(jornadaAnterior);
 
       if (apertura && apertura.horaEntrada) {
-        const { limiteHoras, horaSalidaGenerada } = aplicarCierreAutomatico(jornadaAnterior, apertura);
+        // Su horario del dia que se esta cerrando, que no tiene por que ser el
+        // de hoy. `fecha` es medianoche UTC del dia local, asi que el dia de la
+        // semana se saca en UTC (mismo criterio que horarioService).
+        const horarioDeAquelDia = await HorarioTrabajador.findOne({
+          usuario_id: usuarioid,
+          dia_semana: jornadaAnterior.fecha.getUTCDay(),
+          activo: true
+        });
+
+        const { limiteHoras, horaSalidaGenerada, origen } = aplicarCierreAutomatico(
+          jornadaAnterior,
+          apertura,
+          horarioDeAquelDia ? horarioDeAquelDia.hora_salida_esperada : null
+        );
+
         console.log(
           `Jornada anterior (${diaAnterior}) cerrada automaticamente: ` +
-          `${apertura.horaEntrada} -> ${horaSalidaGenerada}, limite ${limiteHoras}h`
+          `${apertura.horaEntrada} -> ${horaSalidaGenerada}, limite ${limiteHoras.toFixed(2)}h (${origen})`
         );
       } else {
         // Se quedo en pausa y no volvio. Sus tramos estan todos cerrados, asi
@@ -478,13 +546,30 @@ exports.obtenerEstadoActual = async (req, res) => {
     const s = Math.floor(seconds % 60);
     const horatotal = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 
+    // El horario de HOY viaja con el estado para que la pantalla pueda avisar
+    // antes de terminar la jornada: "tu horario acaba a las 23:00, te faltan 3
+    // horas, quizas querias Pausar". Sin esto el aviso seria generico y la
+    // persona no tendria forma de darse cuenta del descuido.
+    const horarioHoy = await HorarioTrabajador.findOne({
+      usuario_id: usuarioid,
+      dia_semana: getLocalDate().getDay(),
+      activo: true
+    }).select('hora_entrada_esperada hora_salida_esperada');
+
     res.json({
       asistenciaId: asistencia._id,
       estado: asistencia.estado,
       horaentrada: asistencia.horaentrada,
       horasalida: asistencia.horasalida,
       horatotal: horatotal,
-      tramos: asistencia.tramos
+      tramos: asistencia.tramos,
+      horarioHoy: horarioHoy
+        ? {
+            entrada: horarioHoy.hora_entrada_esperada,
+            salida: horarioHoy.hora_salida_esperada
+          }
+        : null,
+      minutosGraciaCierre: MINUTOS_GRACIA_CIERRE
     });
 
   } catch (err) {
@@ -521,6 +606,10 @@ exports.procesarCierresAutomaticos = async () => {
     horaentrada: { $ne: null }
   });
 
+  // Horarios de los implicados, para cerrar en SU hora de salida en vez de a
+  // las 12 horas a ojo. Una sola consulta para todas las jornadas abiertas.
+  const mapaHorarios = await horarios.cargarHorarios(jornadas.map(j => j.usuarioid));
+
   let cerradas = 0;
 
   for (const asistencia of jornadas) {
@@ -533,19 +622,24 @@ exports.procesarCierresAutomaticos = async () => {
     const horas = horasAbierto(apertura, ahoraReal, ahoraLocal);
     if (horas === null) continue;
 
-    const limiteHoras = limiteHorasJornada(apertura.horaEntrada);
+    // Su hora de salida del dia de ESA jornada, no la de hoy: el motor tambien
+    // barre jornadas de dias anteriores que quedaron abiertas.
+    const salidaEsperada = horarios.horaSalidaEsperada(
+      mapaHorarios, asistencia.usuarioid, asistencia.fecha
+    );
+
+    const { limiteHoras } = limiteDeCierre(apertura.horaEntrada, salidaEsperada);
     if (horas < limiteHoras) continue;
 
-    const horaTramo = parseInt(String(apertura.horaEntrada).split(':')[0], 10) || 0;
-    const esNocturno = horaTramo >= HORA_INICIO_NOCTURNO;
-
-    const { horaSalidaGenerada } = aplicarCierreAutomatico(asistencia, apertura);
+    const { horaSalidaGenerada, origen } = aplicarCierreAutomatico(
+      asistencia, apertura, salidaEsperada
+    );
     await asistencia.save();
     cerradas++;
 
     console.log(
       `Auto-cierre -> usuario ${asistencia.usuarioid} | tramo ${apertura.horaEntrada} -> ` +
-      `${horaSalidaGenerada} | limite ${limiteHoras}h ${esNocturno ? '(NOCTURNO)' : '(DIURNO)'}`
+      `${horaSalidaGenerada} | limite ${limiteHoras.toFixed(2)}h (${origen})`
     );
   }
 

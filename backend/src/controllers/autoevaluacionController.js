@@ -1,88 +1,49 @@
 
 const Autoevaluacion = require('../models/Autoevaluacion');
-const { getLocalDate, getRangoHoy, getHoyString } = require('../utils/dateUtils');
+const { getLocalDate } = require('../utils/dateUtils');
+const periodos = require('../utils/periodos');
+const cadencia = require('../utils/autoevaluaciones');
 
-// Helper: Generar el identificador del mes actual "YYYY-MM"
-function getMesActual() {
-  const hoy = getLocalDate();
-  const anio = hoy.getFullYear();
-  const mes = String(hoy.getMonth() + 1).padStart(2, '0');
-  return `${anio}-${mes}`;
+/**
+ * Cuantas autoevaluaciones lleva alguien en la semana en curso y cuantas hoy.
+ *
+ * Sale de una sola consulta: se traen las de la semana y las de hoy se cuentan
+ * en memoria, porque son dos o tres documentos como mucho.
+ *
+ * No hace falta ningun campo nuevo en la base: la semana se deduce de
+ * `fechaevaluacion`, que ya se guardaba. Por eso este cambio no lleva
+ * migracion y los registros antiguos cuentan con normalidad.
+ */
+async function contarCupo(usuarioid, momento) {
+  const ahora = momento || getLocalDate();
+  const semana = periodos.rangoSemana(ahora);
+  const dia = periodos.rangoDia(ahora);
+
+  const deLaSemana = await Autoevaluacion.find({
+    usuarioid,
+    completada: 'SI',
+    fechaevaluacion: { $gte: semana.inicio, $lte: semana.fin }
+  }).select('fechaevaluacion');
+
+  const completadasHoy = deLaSemana.filter(
+    a => a.fechaevaluacion >= dia.inicio && a.fechaevaluacion <= dia.fin
+  ).length;
+
+  return { completadasSemana: deLaSemana.length, completadasHoy };
 }
 
-// Helper: Calcular el próximo día permitido (Lunes=1 a Viernes=5)
-function getProximoDiaPermitido() {
-  const hoy = getLocalDate();
-  const dia = hoy.getDay(); // 0=Dom, 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb
-
-  // Días permitidos: 1-5 (Lunes a Viernes)
-  const diasPermitidos = [1, 2, 3, 4, 5];
-
-  for (let i = 1; i <= 7; i++) {
-    const siguiente = (dia + i) % 7;
-    if (diasPermitidos.includes(siguiente)) {
-      const fecha = new Date(hoy);
-      fecha.setDate(hoy.getDate() + i);
-      const nombres = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-      return {
-        nombre: nombres[siguiente],
-        fecha: fecha.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
-      };
-    }
-  }
-  return { nombre: 'Lunes', fecha: '' };
-}
-
-// Helper: Obtener inicio y fin del bloque actual (Mié o Sáb)
-function getRangoBloque() {
-  const { inicio, fin } = getRangoHoy();
-  return { inicio, fin };
-}
-
-// ========== NUEVO ENDPOINT: Estado de autoevaluación ==========
+// ========== GET /api/autoevaluaciones/estado ==========
 exports.getEstado = async (req, res) => {
   try {
-    const usuarioid = req.user.id;
-    const hoy = getLocalDate();
-    const dia = hoy.getDay(); // 0=Dom, 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb
+    const ahora = getLocalDate();
+    const { completadasSemana, completadasHoy } = await contarCupo(req.user.id, ahora);
 
-    // ⏱️ DÍAS PERMITIDOS: Lunes (1) a Viernes (5)
-    const DIAS_PERMITIDOS = [1, 2, 3, 4, 5];
+    const estado = cadencia.evaluarCupo({ completadasSemana, completadasHoy, fecha: ahora });
 
-    // 1. Verificar si hoy es día permitido
-    if (!DIAS_PERMITIDOS.includes(dia)) {
-      const proximo = getProximoDiaPermitido();
-      return res.json({
-        permitido: false,
-        razon: `Las autoevaluaciones solo están habilitadas de Lunes a Viernes.`,
-        proximoDia: proximo.nombre,
-        proximaFecha: proximo.fecha
-      });
-    }
-
-    // 2. Verificar si ya completó la autoevaluación HOY
-    const { inicio, fin } = getRangoBloque();
-
-    const yaCompleto = await Autoevaluacion.findOne({
-      usuarioid: usuarioid,
-      fechaevaluacion: { $gte: inicio, $lte: fin },
-      completada: 'SI'
-    });
-
-    if (yaCompleto) {
-      const proximo = getProximoDiaPermitido();
-      return res.json({
-        permitido: false,
-        razon: `Ya completaste tu autoevaluación de hoy. ¡Buen trabajo!`,
-        proximoDia: proximo.nombre,
-        proximaFecha: proximo.fecha
-      });
-    }
-
-    // 3. Si llegó aquí, puede autoevaluarse
     return res.json({
-      permitido: true,
-      mesActual: getMesActual()
+      ...estado,
+      mesActual: periodos.claveMes(ahora),
+      cadencia: cadencia.describirCadencia()
     });
 
   } catch (err) {
@@ -124,40 +85,33 @@ exports.getAutoevaluacionById = async (req, res) => {
 
 exports.crearAutoevaluacion = async (req, res) => {
   try {
-    console.log('📝 Datos recibidos en crearAutoevaluacion:', JSON.stringify(req.body, null, 2));
-
     // El autor se toma del token, no del body. Antes venía de localStorage y, si
     // ese valor se perdía o corrompía, la autoevaluación se guardaba sin dueño
     // y desaparecía del historial y del ranking sin ningún error visible.
     const usuarioid = req.user.id;
     const { puntajetotal, mensajemotivacional, respuestas } = req.body;
 
-    // Generar quincena automáticamente como "YYYY-MM"
-    const quincena = getMesActual();
+    const ahora = getLocalDate();
 
-    // VALIDACIÓN 1: Verificar día permitido
-    const dia = getLocalDate().getDay();
-    const DIAS_PERMITIDOS = [1, 2, 3, 4, 5];
-    if (!DIAS_PERMITIDOS.includes(dia)) {
-      return res.status(403).json({ error: 'Las autoevaluaciones solo están permitidas de Lunes a Viernes.' });
+    // La misma comprobacion que hace la pantalla al abrirse, con la misma
+    // funcion. El navegador puede tener el estado cacheado o la persona puede
+    // haber dejado la pestaña abierta desde ayer, asi que se vuelve a mirar
+    // aqui: es lo unico que de verdad protege el cupo.
+    const { completadasSemana, completadasHoy } = await contarCupo(usuarioid, ahora);
+    const estado = cadencia.evaluarCupo({ completadasSemana, completadasHoy, fecha: ahora });
+
+    if (!estado.permitido) {
+      return res.status(403).json({ error: estado.razon, tipo: estado.tipo });
     }
 
-    // VALIDACIÓN 2: Verificar que no haya completado hoy
-    const { inicio, fin } = getRangoBloque();
-    const yaCompleto = await Autoevaluacion.findOne({
-      usuarioid: usuarioid,
-      fechaevaluacion: { $gte: inicio, $lte: fin },
-      completada: 'SI'
-    });
+    // `quincena` guarda el MES ("2026-08"). El nombre del campo es historico y
+    // no se toca porque renombrarlo obligaria a migrar produccion. Es la clave
+    // con la que el ranking agrupa los puntajes.
+    const quincena = periodos.claveMes(ahora);
 
-    if (yaCompleto) {
-      return res.status(403).json({ error: 'Ya completaste tu autoevaluación de hoy.' });
-    }
-
-    // Crear la autoevaluación con respuestas incrustadas
     const nuevaAutoevaluacion = new Autoevaluacion({
       usuarioid,
-      fechaevaluacion: getLocalDate(),
+      fechaevaluacion: ahora,
       puntajetotal,
       quincena,
       mensajemotivacional,
@@ -167,13 +121,18 @@ exports.crearAutoevaluacion = async (req, res) => {
 
     const savedAuto = await nuevaAutoevaluacion.save();
 
-    console.log('✅ Autoevaluación guardada con ID:', savedAuto.id);
+    const completadasTrasGuardar = completadasSemana + 1;
+    const restantes = Math.max(0, cadencia.VECES_POR_SEMANA - completadasTrasGuardar);
 
     res.json({
       message: 'Autoevaluación guardada correctamente',
       id: savedAuto.id,
       puntaje: savedAuto.puntajetotal,
-      mensajemotivacional: savedAuto.mensajemotivacional
+      mensajemotivacional: savedAuto.mensajemotivacional,
+      // Para que la pantalla pueda decir "1 de 2" sin volver a preguntar.
+      completadasSemana: completadasTrasGuardar,
+      objetivoSemanal: cadencia.VECES_POR_SEMANA,
+      restantesSemana: restantes
     });
   } catch (err) {
     console.error('❌ ERROR EN BACKEND:', err);

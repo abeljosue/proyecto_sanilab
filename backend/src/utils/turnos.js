@@ -42,8 +42,21 @@ const CORTES = [
 // Minutos de gracia dentro de cada hora antes de considerar tardanza.
 const TOLERANCIA_MINUTOS = 15;
 
-// Días en que se espera asistencia (0=Domingo ... 6=Sábado).
-const DIAS_LABORABLES = [1, 2, 3, 4, 5, 6]; // lunes a sábado
+// RESPALDO: días en que se espera asistencia a quien NO tiene horario cargado
+// (0=Domingo ... 6=Sábado).
+//
+// Ya no es la verdad, es la red. La verdad es el horario de cada persona: esta
+// lista solo se aplica a quien todavía no lo tiene. Ver `esDiaLaborable`.
+//
+// Incluye el domingo a propósito. Antes era [1..6] y afirmaba que las 22
+// personas trabajan de lunes a sábado, lo cual es falso por los dos lados: hay
+// cuatro que trabajan domingo (y su asistencia no se contabilizaba) y hay
+// varios que libran entre semana (y salían como ausentes en sus días libres).
+//
+// ⚠️ Con el domingo dentro, a quien NO tenga horario se le espera los siete
+// días. Es el precio de no dejar fuera a los que sí trabajan el domingo, y se
+// apaga solo según se completan horarios. Si estorba, quitar el 0 de aquí.
+const DIAS_LABORABLES = [0, 1, 2, 3, 4, 5, 6];
 
 // A partir de esta hora, quien no marcó deja de estar "pendiente" y pasa a "ausente".
 const HORA_CORTE_AUSENCIA = '23:30';
@@ -204,10 +217,39 @@ function evaluarEntrada(hora, horaEsperada) {
   };
 }
 
-/** ¿Se espera asistencia ese día? */
-function esDiaLaborable(fecha) {
+/**
+ * ¿Se espera a ESTA persona ese día?
+ *
+ * La pregunta era global y no podía serlo: la lista afirmaba que toda la
+ * plantilla trabaja los mismos días, y eso es falso para casi la mitad del
+ * equipo. A quien libra los lunes se le marcaba ausente todos los lunes.
+ *
+ * Funciona en cascada, igual que la tardanza:
+ *
+ *   1. Si la persona TIENE horario cargado -> trabaja los días que diga SU
+ *      horario. Es la buena.
+ *   2. Si NO lo tiene -> se cae en DIAS_LABORABLES (respaldo).
+ *
+ * Así cada horario que se rellena mejora la precisión de esa persona ese mismo
+ * día, sin necesidad de cargarlos todos antes de empezar.
+ *
+ * @param {Date}            fecha
+ * @param {Set|Array|null} [diasDeSuHorario]  días de la semana en que tiene
+ *                                            horario. Vacío o ausente = no
+ *                                            tiene, se usa el respaldo.
+ */
+function esDiaLaborable(fecha, diasDeSuHorario) {
   const d = fecha instanceof Date ? fecha : new Date(fecha);
-  return DIAS_LABORABLES.includes(d.getDay());
+  const dia = d.getDay();
+
+  if (diasDeSuHorario instanceof Set && diasDeSuHorario.size > 0) {
+    return diasDeSuHorario.has(dia);
+  }
+  if (Array.isArray(diasDeSuHorario) && diasDeSuHorario.length > 0) {
+    return diasDeSuHorario.includes(dia);
+  }
+
+  return DIAS_LABORABLES.includes(dia);
 }
 
 /** ¿Ya pasó la hora a partir de la cual no marcar cuenta como ausencia? */
@@ -222,9 +264,10 @@ function pasoHoraDeCorte(momento) {
  * jornada aún puede llegar (pendiente); pasada la hora de corte, es ausencia.
  * @param {Date} fecha    día evaluado
  * @param {Date} momento  instante de la consulta
+ * @param {Set|Array|null} [diasDeSuHorario]  días de su horario, si lo tiene
  */
-function estadoSinMarcar(fecha, momento) {
-  if (!esDiaLaborable(fecha)) return ESTADOS.NO_LABORABLE;
+function estadoSinMarcar(fecha, momento, diasDeSuHorario) {
+  if (!esDiaLaborable(fecha, diasDeSuHorario)) return ESTADOS.NO_LABORABLE;
 
   const dia = fecha instanceof Date ? fecha : new Date(fecha);
   const ahora = momento instanceof Date ? momento : new Date(momento);
@@ -281,7 +324,8 @@ function describirConfiguracion() {
       ventana: etiquetaVentana(c)
     })),
     toleranciaMinutos: TOLERANCIA_MINUTOS,
-    diasLaborables: DIAS_LABORABLES.map(d => nombresDias[d]),
+    // Se llaman "de respaldo" porque solo aplican a quien no tiene horario.
+    diasLaborablesRespaldo: DIAS_LABORABLES.map(d => nombresDias[d]),
     horaCorteAusencia: HORA_CORTE_AUSENCIA
   };
 }

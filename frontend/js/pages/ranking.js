@@ -47,7 +47,12 @@ function renderRanking(ranking, usuarioid) {
       else if (persona.posicion == 2) icon = '🥈';
       else if (persona.posicion == 3) icon = '🥉';
 
-      const ruleta = persona.tieneruleta ? '🎉' : '—';
+      // El servidor manda ya la etiqueta legible; 'quincena' es la clave en
+      // crudo ('2026-08') y se enseñaba tal cual.
+      const periodo = persona.etiquetaPeriodo || persona.quincena;
+      const ruleta = persona.tieneruleta
+        ? '<span title="Gira la ruleta a fin de mes">🎉</span>'
+        : '<span title="Solo los 3 primeros giran la ruleta">—</span>';
       const highlight = String(persona.usuarioid) === String(usuarioid) ? 'highlight' : '';
       
       // 🆕 OBTENER AVATAR (inicial y color)
@@ -62,7 +67,7 @@ function renderRanking(ranking, usuarioid) {
             <span class="rank-name">${persona.nombre}</span>
           </div>
           <div class="rank-score">⭐ ${persona.puntajetotal}</div>
-          <div class="rank-date">${persona.quincena}</div>
+          <div class="rank-date">${periodo}</div>
           <div class="rank-ruleta">${ruleta}</div>
         </div>
       `;
