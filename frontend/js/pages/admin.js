@@ -316,10 +316,10 @@ let mesAutoevalSeleccionado = null;
 let filtroAutoeval = 'todos';
 let datosAutoeval = null;
 
-// Por defecto se cuenta solo al personal evaluado, como en los reportes de
-// WhatsApp. La tabla anterior si incluia a los admins, asi que el interruptor
-// existe para que la diferencia se vea y no parezca que falta gente.
-let incluirAdminsAutoeval = false;
+// Las cuentas ADMIN no aparecen NUNCA aquí, y no hay interruptor: son dos
+// cuentas compartidas (sistemas y gerencia) que usan varias personas a la vez,
+// así que su puntaje no representa a nadie. Siguen pudiendo autoevaluarse; lo
+// que se les quita es competir en el ranking.
 
 function prepararFiltrosAutoevaluacion() {
   const select = document.getElementById('selMesAutoeval');
@@ -344,17 +344,6 @@ function prepararFiltrosAutoevaluacion() {
   // cada tecla.
   if (buscador) buscador.addEventListener('input', pintarAutoevaluaciones);
 
-  const btnAdmins = document.getElementById('btnIncluirAdminsAutoeval');
-  if (btnAdmins) {
-    btnAdmins.addEventListener('click', () => {
-      incluirAdminsAutoeval = !incluirAdminsAutoeval;
-      btnAdmins.textContent = incluirAdminsAutoeval
-        ? '👤 Ocultar administradores'
-        : '👤 Incluir administradores';
-      cargarAutoevaluaciones();
-    });
-  }
-
   const btnArchivados = document.getElementById('btnToggleArchivadosAutoeval');
   if (btnArchivados) {
     btnArchivados.addEventListener('click', () => {
@@ -375,10 +364,7 @@ async function cargarAutoevaluaciones() {
   tbody.innerHTML = '<tr><td colspan="6">Cargando...</td></tr>';
 
   try {
-    const params = {
-      mostrarArchivados: mostrandoArchivadosAutoeval,
-      incluirAdmins: incluirAdminsAutoeval
-    };
+    const params = { mostrarArchivados: mostrandoArchivadosAutoeval };
     if (mesAutoevalSeleccionado) params.mes = mesAutoevalSeleccionado;
 
     const res = await axios.get('/api/admin/autoevaluaciones', {
@@ -1818,18 +1804,24 @@ if (btnVerFaltantes) {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      const { faltantes, total, fecha, estado, esDiaLaborable, pasoHoraDeCorte } = res.data;
+      const { faltantes, total, fecha, estado, libranHoy, sinHorario, pasoHoraDeCorte } = res.data;
 
       // Quien no marcó está "pendiente" mientras el día siga abierto y pasa a
-      // "ausente" tras la hora de corte. En domingo no se espera a nadie.
+      // "ausente" tras la hora de corte.
+      //
+      // Ya NO existe el estado global 'día no laborable': ahora se mira el
+      // horario de cada persona, así que en la lista solo aparece quien de
+      // verdad tenía que venir hoy. Los que libran se cuentan aparte.
       let etiqueta = 'Sin marcar';
       if (estado === 'AUSENTE') etiqueta = '🔴 Ausentes';
       else if (estado === 'PENDIENTE') etiqueta = '⏳ Pendientes';
-      else if (estado === 'NO_LABORABLE') etiqueta = '⬜ Día no laborable';
 
-      const nota = esDiaLaborable === false
-        ? ' — hoy no se espera asistencia'
-        : (pasoHoraDeCorte ? ' — ya pasó la hora de corte' : ' — aún pueden marcar');
+      const detalles = [];
+      detalles.push(pasoHoraDeCorte ? 'ya pasó la hora de corte' : 'aún pueden marcar');
+      if (libranHoy > 0) detalles.push(`${libranHoy} libran hoy`);
+      if (sinHorario > 0) detalles.push(`⚠️ ${sinHorario} sin horario cargado`);
+
+      const nota = ` — ${detalles.join(' · ')}`;
 
       titulo.textContent = `${etiqueta} del ${fecha} (Total: ${total})${nota}${mostrandoArchivadosFaltantes ? ' [MODO ARCHIVADOS]' : ''}`;
       tbody.innerHTML = '';

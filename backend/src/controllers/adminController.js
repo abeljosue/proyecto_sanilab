@@ -129,7 +129,7 @@ exports.getHoras = async (req, res) => {
  */
 exports.getResumenAutoevaluaciones = async (req, res) => {
   try {
-    const { mes, incluirAdmins, mostrarArchivados } = req.query;
+    const { mes, mostrarArchivados } = req.query;
 
     const clave = rankingService.esClaveValida(mes) ? mes : periodos.claveMes();
     const esMesActual = clave === periodos.claveMes();
@@ -137,8 +137,13 @@ exports.getResumenAutoevaluaciones = async (req, res) => {
     await rankingService.recalcularPeriodo(clave);
 
     // ── Plantilla evaluada ──
-    const filtro = { activo: { $ne: 'NO' } };
-    if (incluirAdmins !== 'true') filtro.rol = 'USER';
+    // Las cuentas ADMIN quedan SIEMPRE fuera, sin interruptor.
+    //
+    // Solo hay dos (sistemas y gerencia) y las usan varias personas a la vez,
+    // así que su puntaje no representa a nadie y ensucia la comparación. Sí
+    // pueden seguir autoevaluándose y marcando asistencia: lo que se les quita
+    // es aparecer en el ranking, no el acceso.
+    const filtro = { activo: { $ne: 'NO' }, rol: 'USER' };
     filtro.archivado = mostrarArchivados === 'true' ? true : { $ne: true };
 
     const plantilla = await Usuario.find(filtro)
@@ -575,13 +580,29 @@ exports.getFaltantesHoy = async (req, res) => {
 
     const queryFaltante = await Usuario.find(filter).populate('areaid', 'nombre');
 
-    // Quien no marcó está "pendiente" mientras el día siga abierto, y pasa a
-    // "ausente" una vez superada la hora de corte. En día no laborable no se
-    // espera a nadie, así que no cuenta como falta.
     const ahora = getLocalDate();
-    const estado = turnos.estadoSinMarcar(ahora, ahora);
 
-    const faltantes = queryFaltante.map(u => ({
+    // QUIEN LIBRA HOY NO ES UN FALTANTE.
+    //
+    // Antes esto se decidía con una lista global de días laborables, que
+    // afirmaba que las 22 personas trabajan de lunes a sábado. Es falso para
+    // casi la mitad: a quien libra los lunes se le listaba como ausente todos
+    // los lunes. Ahora manda el horario de cada uno y la lista global solo
+    // cubre a quien todavía no lo tiene cargado.
+    const mapaHorarios = await horarios.cargarHorarios(queryFaltante.map(u => u._id));
+
+    const esperados = queryFaltante.filter(
+      u => turnos.esDiaLaborable(ahora, horarios.diasDe(mapaHorarios, u._id))
+    );
+
+    // Ya solo quedan personas a las que SÍ se esperaba, así que el estado es
+    // puramente cuestión de hora: pendientes mientras el día siga abierto,
+    // ausentes pasada la hora de corte.
+    const estado = turnos.pasoHoraDeCorte(ahora)
+      ? turnos.ESTADOS.AUSENTE
+      : turnos.ESTADOS.PENDIENTE;
+
+    const faltantes = esperados.map(u => ({
       id: u._id,
       nombre: u.nombre,
       apellido: u.apellido,
@@ -589,6 +610,9 @@ exports.getFaltantesHoy = async (req, res) => {
       telefono: u.telefono || null,
       area: u.areaid ? u.areaid.nombre : '_',
       archivado: u.archivado || false,
+      // Se dice si el veredicto sale de su horario o del respaldo, igual que
+      // en el detalle de asistencia con las tardanzas.
+      tieneHorario: horarios.tieneHorario(mapaHorarios, u._id),
       estado
     }));
 
@@ -597,7 +621,10 @@ exports.getFaltantesHoy = async (req, res) => {
       faltantes: faltantes,
       total: faltantes.length,
       estado,
-      esDiaLaborable: turnos.esDiaLaborable(ahora),
+      // Cuántos libran hoy según su horario. Sustituye al antiguo
+      // 'esDiaLaborable', que era global y ya no significa nada.
+      libranHoy: queryFaltante.length - esperados.length,
+      sinHorario: esperados.filter(u => !horarios.tieneHorario(mapaHorarios, u._id)).length,
       pasoHoraDeCorte: turnos.pasoHoraDeCorte(ahora),
       fecha: fechaHoy.toISOString().split('T')[0]
     });
