@@ -4,8 +4,8 @@
  * El sistema NO conoce el horario individual de cada trabajador, y no intenta
  * adivinarlo. La puntualidad se mide con una regla única y sin horarios:
  *
- *     quien marca dentro de los primeros 15 minutos de cualquier hora
- *     se considera puntual; a partir del minuto 16, tardanza.
+ *     quien marca dentro de los primeros 10 minutos de cualquier hora
+ *     se considera puntual; a partir del minuto 11, tardanza.
  *
  * Es deliberadamente tosco. Alguien que debía entrar a las 08:00 y marca a las
  * 09:05 saldrá como puntual, porque el minuto es 05. Ese contraste con el
@@ -40,7 +40,7 @@ const CORTES = [
 ];
 
 // Minutos de gracia dentro de cada hora antes de considerar tardanza.
-const TOLERANCIA_MINUTOS = 15;
+const TOLERANCIA_MINUTOS = 10;
 
 // RESPALDO: días en que se espera asistencia a quien NO tiene horario cargado
 // (0=Domingo ... 6=Sábado).
@@ -166,7 +166,7 @@ function diferenciaCircular(minutos, referencia) {
  *   1. Si la persona TIENE horario para ese día, se compara contra su hora
  *      de entrada. Es la buena: "llegó tarde" significa tarde de verdad.
  *   2. Si NO lo tiene, se cae en la regla del minuto (marcar dentro de los
- *      primeros 15 minutos de cualquier hora). Es un apaño de cuando no
+ *      primeros 10 minutos de cualquier hora). Es un apaño de cuando no
  *      existían los horarios, y se mantiene solo como respaldo.
  *
  * La cascada evita el "big bang": cada horario que se rellena mejora la
