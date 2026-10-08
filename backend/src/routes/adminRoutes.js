@@ -16,7 +16,7 @@ router.get('/faltantes-hoy', verifyToken, verifyAdmin, adminController.getFaltan
 // Dar de baja / reincorporar. Lleva verifyCanEdit porque la cuenta de gerencia
 // es de solo lectura y hasta ahora podia dar de baja a cualquiera.
 router.put('/usuarios/:id/archivar', verifyToken, verifyAdmin, verifyCanEdit, adminController.toggleArchivarUsuario);
-router.put('/usuarios/:id/telefono', verifyToken, verifyAdmin, adminController.updateTelefono);
+router.put('/usuarios/:id/telefono', verifyToken, verifyAdmin, verifyCanEdit, adminController.updateTelefono);
 
 // Editar los datos de contacto de un usuario (nombre, apellido, telefono, area...).
 // Solo campos que ya existen en el modelo: no requiere migracion.
@@ -33,6 +33,10 @@ router.put('/usuarios/:id/horario', verifyToken, verifyAdmin, verifyCanEdit, adm
 // necesidad de ejecutar el sembrado contra la base de produccion.
 router.get('/areas', verifyToken, verifyAdmin, adminController.getAreas);
 router.post('/areas', verifyToken, verifyAdmin, verifyCanEdit, adminController.createArea);
+
+// 🕵️ Usuarios sin marcas durante N dias (por defecto 7): quedan "por confirmar
+// retiro". No se eliminan ni se archivan solos; el administrador decide.
+router.get('/usuarios/por-confirmar-retiro', verifyToken, verifyAdmin, adminController.getPorConfirmarRetiro);
 
 // ========== 🆕 NUEVAS RUTAS ==========
 
