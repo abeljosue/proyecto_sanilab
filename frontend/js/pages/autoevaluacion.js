@@ -123,7 +123,7 @@ window.onload = async function () {
     updateProgress();
   } catch (error) {
     console.error('Error al cargar preguntas:', error);
-    alert('Error al cargar las preguntas. Por favor, intenta nuevamente.');
+    Swal.fire({ icon: 'error', title: 'No se cargaron las preguntas', text: 'Por favor, intenta nuevamente.' });
   }
 
 
@@ -394,7 +394,7 @@ function closeSuccessModal() {
 async function enviarRespuestas() {
   const total = preguntasGlobales.length;
   if (total === 0) {
-    alert('No hay preguntas para responder.');
+    Swal.fire({ icon: 'info', title: 'Sin preguntas', text: 'No hay preguntas para responder.' });
     return;
   }
 
@@ -477,9 +477,9 @@ async function enviarRespuestas() {
   } catch (error) {
     if (error.response) {
       const errData = error.response.data;
-      alert('Error al guardar la autoevaluación: ' + (errData?.message || errData?.error || 'Error desconocido'));
+      Swal.fire({ icon: 'error', title: 'No se guardó tu autoevaluación', text: errData?.message || errData?.error || 'Error desconocido' });
     } else {
-      alert('Error de conexión. Por favor, intenta nuevamente.');
+      Swal.fire({ icon: 'error', title: 'Error de conexión', text: 'Revisa tu internet e intenta nuevamente. Si el sistema estaba dormido, espera unos segundos.' });
     }
     console.error('Error al enviar:', error);
     btnEnviar.innerHTML = textoOriginal;
