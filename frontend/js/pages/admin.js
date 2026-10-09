@@ -457,8 +457,8 @@ function pintarAutoevaluaciones() {
     return `
       <tr style="${estiloFila}">
         <td>${puesto}</td>
-        <td>${f.nombre} ${f.apellido}${baja}</td>
-        <td>${f.area}</td>
+        <td>${escaparHtml(`${f.nombre} ${f.apellido}`)}${baja}</td>
+        <td>${escaparHtml(f.area)}</td>
         <td>${delMes}</td>
         <td>${f.puntajeMes}</td>
         ${celdaSemana}
@@ -578,7 +578,7 @@ async function mostrarReporteAsistencia() {
       </div>
       <p style="font-size:12px; color:#666; text-align:left; margin-bottom:10px;">
         ⚠️ Las filas marcadas como <strong>Auto</strong> tienen horas estimadas por el sistema porque el trabajador no marcó salida.<br>
-        ⏰ Quien tiene <strong>horario</strong> se juzga contra su hora de entrada, con ${data.configuracionTurnos?.toleranciaMinutos ?? 15} min de tolerancia.<br>
+        ⏰ Quien tiene <strong>horario</strong> se juzga contra su hora de entrada, con ${data.configuracionTurnos?.toleranciaMinutos ?? 10} min de tolerancia.<br>
         Quien no lo tiene aún cae en la regla antigua: ${describirTurnos(data.configuracionTurnos)}. La columna <em>Esperada</em> indica cuál se aplicó.
       </p>
       <div style="max-height:400px; overflow:auto;">
@@ -653,8 +653,7 @@ async function mostrarEstadisticasUsuario() {
         <tr><td>🏆 Última Posición Ranking</td><td><strong>#${stats.ultimaPosicionRanking || 'N/A'}</strong></td></tr>
       </table>
       <p style="font-size:12px; color:#666; margin-top:10px;">
-        ⏰ Sin horarios individuales, se cuenta como tardanza marcar pasados los 15 primeros
-        minutos de la hora. No se compara contra un horario asignado.
+        ⏰ Sin horarios individuales, se cuenta como tardanza marcar pasados los 10 primeros minutos de la hora. No se compara contra un horario asignado.
       </p>
     `;
     Swal.fire({ title: `📈 ${nombreUsuario}`, html: html, confirmButtonText: 'Cerrar' });
@@ -679,9 +678,9 @@ async function mostrarUsuariosBloqueados() {
     let html = `<div style="max-height:400px; overflow:auto;"><table style="width:100%;"><thead><tr><th>Usuario</th><th>Tiempo restante</th><th></th></tr></thead><tbody>`;
     data.usuarios.forEach(u => {
       html += `<tr>
-        <td>${u.nombre_completo}</td>
+        <td>${escaparHtml(u.nombre_completo)}</td>
         <td style="color:red;">${u.minutos_restantes} min</td>
-        <td><button class="btn-desbloquear" data-id="${u.id}" data-nombre="${u.nombre_completo}"
+        <td><button class="btn-desbloquear" data-id="${u.id}" data-nombre="${escaparHtml(u.nombre_completo)}"
               style="cursor:pointer; padding:4px 10px; background:#4caf50; color:white; border:none; border-radius:4px;">
               🔓 Desbloquear
             </button></td>
@@ -1834,14 +1833,14 @@ if (btnVerFaltantes) {
           const btnColor = f.archivado ? '#4caf50' : '#f44336';
           tbody.innerHTML += `
             <tr style="opacity: ${f.archivado ? '0.6' : '1'};">
-              <td>${f.nombre}</td>
-              <td>${f.apellido || '—'}</td>
-              <td>${f.correo}</td>
+              <td>${escaparHtml(f.nombre)}</td>
+              <td>${escaparHtml(f.apellido || '—')}</td>
+              <td>${escaparHtml(f.correo)}</td>
               <td>
-                ${f.telefono || '—'} 
-                <button onclick="editarTelefonoUsuario('${f.id}', '${f.telefono || ''}')" style="background:transparent; border:none; cursor:pointer;" title="Editar Teléfono">✏️</button>
+                ${escaparHtml(f.telefono || '—')} 
+                <button onclick="editarTelefonoUsuario('${f.id}', '${escaparHtml(f.telefono || '').replace(/'/g, '')}')" style="background:transparent; border:none; cursor:pointer;" title="Editar Teléfono">✏️</button>
               </td>
-              <td>${f.area || '—'}</td>
+              <td>${escaparHtml(f.area || '—')}</td>
               <td>
                 <button class="btn-archivar" style="background:${btnColor}" onclick="archivarUsuario('${f.id}')">
                   ${f.archivado ? '🔙' : '🗃️'} ${btnText}
@@ -1939,3 +1938,84 @@ if (btnGuardarEdicion) {
     }
   });
 }
+
+// ==========================================================================
+//  POR CONFIRMAR RETIRO
+//  Quien lleva 7 dias sin ninguna marca queda "observado". No se elimina ni
+//  se archiva solo: el administrador confirma la baja o lo mantiene.
+// ==========================================================================
+
+async function mostrarPorConfirmarRetiro() {
+  const token = localStorage.getItem('token');
+
+  try {
+    Swal.fire({ title: 'Buscando inactivos...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    const res = await axios.get('/api/admin/usuarios/por-confirmar-retiro', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const { usuarios, dias } = res.data;
+
+    if (usuarios.length === 0) {
+      Swal.fire('✅ Todo al día', `Nadie lleva ${dias} días o más sin marcar.`, 'success');
+      return;
+    }
+
+    const filas = usuarios.map(u => `
+      <tr>
+        <td style="text-align:left; padding:6px 8px;"><strong>${escaparHtml(u.nombre)}</strong>
+          <br><span style="font-size:11.5px; color:#777;">${escaparHtml(u.area)}${u.telefono ? ' · ' + escaparHtml(u.telefono) : ''}</span></td>
+        <td style="padding:6px 8px; color:#b45309;">${u.nuncaMarco ? 'Nunca marcó' : formatearFechaISO(u.ultimaMarca)}<br><span style="font-size:11.5px;">${u.diasSinMarcar} días</span></td>
+        <td style="padding:6px 8px;"><button type="button" data-baja="${u.id}" data-nombre="${escaparHtml(u.nombre)}"
+          style="background:#e11d48; color:#fff; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">🚪 Confirmar baja</button></td>
+      </tr>`).join('');
+
+    await Swal.fire({
+      title: `🕵️ Por confirmar retiro (${usuarios.length})`,
+      html: `
+        <p style="font-size:12.5px; color:#666; text-align:left; margin:0 0 10px;">
+          Sin ninguna marca en los últimos ${dias} días. <strong>No se ha dado de baja a nadie:</strong>
+          confirma solo a quien de verdad se retiró. Quien no confirmes seguirá activo.
+        </p>
+        <div style="max-height:340px; overflow-y:auto; border:1px solid #eee; border-radius:8px;">
+          <table style="width:100%; border-collapse:collapse; font-size:13px;">
+            <thead><tr style="background:#f5f5f5;"><th style="padding:6px 8px; text-align:left;">Persona</th><th>Última marca</th><th></th></tr></thead>
+            <tbody>${filas}</tbody>
+          </table>
+        </div>`,
+      width: '640px',
+      showConfirmButton: false,
+      showCloseButton: true,
+      didOpen: () => {
+        Swal.getPopup().querySelectorAll('[data-baja]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const ok = await Swal.fire({
+              title: '¿Confirmar la baja?',
+              text: `${btn.dataset.nombre} dejará de poder iniciar sesión. Su historial se conserva y se puede reincorporar.`,
+              icon: 'warning',
+              showCancelButton: true,
+              confirmButtonText: 'Sí, dar de baja',
+              cancelButtonText: 'Cancelar',
+              confirmButtonColor: '#e11d48'
+            });
+            if (!ok.isConfirmed) return mostrarPorConfirmarRetiro();
+            try {
+              await axios.put(`/api/admin/usuarios/${btn.dataset.baja}/archivar`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              await Swal.fire({ icon: 'success', title: 'Dado de baja', timer: 1500, showConfirmButton: false });
+              cargarHoras();
+              mostrarPorConfirmarRetiro();
+            } catch (e) {
+              Swal.fire('Error', e.response?.data?.error || 'No se pudo dar de baja', 'error');
+            }
+          });
+        });
+      }
+    });
+  } catch (error) {
+    Swal.fire('Error', error.response?.data?.error || 'No se pudo cargar la lista', 'error');
+  }
+}
+
+const btnPorConfirmarRetiro = document.getElementById('btnPorConfirmarRetiro');
+if (btnPorConfirmarRetiro) btnPorConfirmarRetiro.onclick = mostrarPorConfirmarRetiro;
