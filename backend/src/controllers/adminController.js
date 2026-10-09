@@ -1221,3 +1221,58 @@ exports.updateTelefono = async (req, res) => {
     res.status(500).json({ success: false, error: 'Error del servidor' });
   }
 };
+
+// ========== POR CONFIRMAR RETIRO ==========
+// Quien lleva N dias (7 por defecto) sin ninguna marca queda "observado": se
+// avisa al administrador, pero NO se archiva ni se borra a nadie de forma
+// automatica. La decision (dar de baja o mantener) es siempre humana.
+// No requiere migracion: se calcula a partir de las asistencias existentes.
+exports.getPorConfirmarRetiro = async (req, res) => {
+  try {
+    const dias = Math.min(Math.max(parseInt(req.query.dias, 10) || 7, 1), 60);
+    const hoy = new Date(getFechaHoyMidnight());
+    const umbral = new Date(hoy.getTime() - dias * 24 * 60 * 60 * 1000);
+
+    // Solo cuentas de personas: las ADMIN son compartidas y no marcan asistencia.
+    const usuarios = await Usuario.find({
+      archivado: { $ne: true },
+      activo: { $ne: 'NO' },
+      rol: { $ne: 'ADMIN' }
+    })
+      .select('nombre apellido correo telefono areaid fecha_creacion')
+      .populate('areaid', 'nombre');
+
+    const ultimas = await Asistencia.aggregate([
+      { $group: { _id: '$usuarioid', ultima: { $max: '$fecha' } } }
+    ]);
+    const ultimaDe = new Map(ultimas.map(u => [String(u._id), u.ultima]));
+
+    const iso = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
+
+    const observados = usuarios
+      .map(u => {
+        const ultima = ultimaDe.get(String(u._id)) || null;
+        // Si nunca marco, se cuenta desde que se registro: un usuario recien
+        // creado no debe aparecer como inactivo.
+        const referencia = ultima || u.fecha_creacion;
+        return { u, ultima, referencia };
+      })
+      .filter(x => x.referencia && new Date(x.referencia) < umbral)
+      .map(({ u, ultima, referencia }) => ({
+        id: u._id,
+        nombre: `${u.nombre} ${u.apellido || ''}`.trim(),
+        correo: u.correo,
+        telefono: u.telefono || '',
+        area: u.areaid ? u.areaid.nombre : 'Sin área',
+        ultimaMarca: iso(ultima),
+        nuncaMarco: !ultima,
+        diasSinMarcar: Math.floor((hoy.getTime() - new Date(referencia).getTime()) / 86400000)
+      }))
+      .sort((a, b) => b.diasSinMarcar - a.diasSinMarcar);
+
+    res.json({ success: true, dias, total: observados.length, usuarios: observados });
+  } catch (error) {
+    console.error('Error al listar por confirmar retiro:', error);
+    res.status(500).json({ success: false, error: 'Error del servidor' });
+  }
+};
