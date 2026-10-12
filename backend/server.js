@@ -31,6 +31,14 @@ const connectDB = require('./config/dbMongo');
 // Conectar a MongoDB
 connectDB();
 
+// Redaccion nueva de las preguntas de autoevaluacion (sin duplicados ni
+// ambiguedad). Se aplica sola, una vez conectada la base, y es idempotente:
+// solo toca las preguntas que aun tienen el texto antiguo.
+const { actualizarRedaccionPreguntas } = require('./src/utils/redaccionPreguntas');
+require('mongoose').connection.once('connected', () => {
+  actualizarRedaccionPreguntas().catch(e => console.error('⚠️ No se actualizó la redacción de preguntas:', e.message));
+});
+
 app.use(getCors());
 
 app.use(express.json());
@@ -80,6 +88,10 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason, promise) => {
   console.error('🔥 Unhandled Rejection (Promesa sin catch):', promise, 'razón:', reason);
 });
+
+// Ruta ligera para el monitor externo (UptimeRobot, cron-job.org...) que evita
+// que Render duerma el servicio. Va antes del resto: no toca la base de datos.
+app.get('/healthz', (req, res) => res.status(200).send('ok'));
 
 const PORT = process.env.PORT || 3000;
 
