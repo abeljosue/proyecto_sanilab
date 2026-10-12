@@ -1,1 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mi horario</title>
+  <link rel="icon" type="image/png" href="../../assets/images/Sanilab-favicon.png" />
+  <style>
+    body{font-family:Inter,Arial,sans-serif;background:#f4f7f5;color:#1c2a27;margin:0;padding:20px}
+    .box{max-width:720px;margin:0 auto;background:#fff;border-radius:14px;padding:24px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+    h1{margin:0 0 4px;font-size:24px} h2{font-size:17px;margin:26px 0 8px}
+    p.sub{color:#5f6f6a;margin:0 0 16px;font-size:14px}
+    table{width:100%;border-collapse:collapse;font-size:14px}
+    td,th{padding:6px 4px;text-align:left} th{color:#5f6f6a;font-weight:600}
+    input[type=time],textarea{padding:6px 8px;border:1px solid #cfd8d4;border-radius:6px;font-family:inherit;font-size:14px}
+    textarea{width:100%;box-sizing:border-box;min-height:70px}
+    button{cursor:pointer;border:0;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:600}
+    .primary{background:#2e9e7d;color:#fff} .back{background:#e5e7eb;color:#374151;margin-bottom:14px}
+    .chip{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700}
+    .PENDIENTE{background:#fff3cd;color:#8a6100}.APROBADA{background:#d9f2e6;color:#14663f}.RECHAZADA{background:#fde0e0;color:#a12626}
+    .item{border:1px solid #e3e9e6;border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:14px}
+  </style>
+</head>
+<body>
+  <div class="box">
+    <button class="back" onclick="location.href='../home/index.html'">← Volver</button>
+    <h1>Mi horario</h1>
+    <p class="sub">Si tu horario cambió, envía tu nuevo horario con la captura de pantalla de la autorización (WhatsApp o Gerencia). Un administrador lo revisará.</p>
+
+    <h2>Horario actual</h2>
+    <div id="actual">Cargando…</div>
+
+    <h2>Solicitar un cambio</h2>
+    <table>
+      <thead><tr><th>Día</th><th>Trabajo</th><th>Entrada</th><th>Salida</th></tr></thead>
+      <tbody id="filas"></tbody>
+    </table>
+    <p style="margin:14px 0 4px;font-size:14px"><strong>Motivo</strong> (opcional)</p>
+    <textarea id="motivo" maxlength="500" placeholder="Ej.: Gerencia autorizó cambio por clases"></textarea>
+    <p style="margin:14px 0 4px;font-size:14px"><strong>Captura de la autorización</strong> (obligatoria, imagen de hasta 5 MB)</p>
+    <input type="file" id="evidencia" accept="image/png,image/jpeg,image/webp,image/gif">
+    <p style="margin-top:18px"><button class="primary" id="btnEnviar">Enviar solicitud</button></p>
+
+    <h2>Mis solicitudes</h2>
+    <div id="mias">Cargando…</div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="../../js/pages/horario.js"></script>
+</body>
+</html>
 
